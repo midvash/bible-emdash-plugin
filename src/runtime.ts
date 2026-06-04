@@ -56,10 +56,17 @@ export function buildClientPattern(language: Language): { pattern: string; flags
 }
 
 /**
- * Generic getter shape — `getPluginSetting(pluginId, key)` from `emdash`.
+ * Generic per-key getter — `getPluginSetting(pluginId, key)` from `emdash`.
  * Typed loosely so we don't import emdash's type into this module.
  */
 type GetSetting = (pluginId: string, key: string) => Promise<unknown>;
+
+/**
+ * Batch getter — `getPluginSettings(pluginId)` from `emdash`, which returns
+ * every persisted key in a single read. Pass this as the optional second
+ * argument to collapse ~15 sequential reads into one.
+ */
+type GetAllSettings = (pluginId: string) => Promise<Record<string, unknown> | null>;
 
 export interface InlineSnippets {
 	enabled: boolean;
@@ -68,38 +75,38 @@ export interface InlineSnippets {
 }
 
 /**
- * Resolve all settings from the plugin's KV store and return the JS+CSS
- * ready to inline. Falls back to defaults for missing keys.
+ * Memoized compiled output, keyed by a hash of the resolved settings. The
+ * BOOKS regex (rebuilt by buildClientPattern) and the JS/CSS strings depend
+ * only on the settings, so we recompute them only when the settings actually
+ * change instead of on every server-rendered request.
  */
-export async function getBibleByMidvashSnippets(getSetting: GetSetting): Promise<InlineSnippets> {
-	const raw: Record<string, unknown> = {};
-	for (const key of Object.keys(SETTINGS_FIELDS)) {
-		const v = await getSetting(PLUGIN_ID, key);
-		if (v !== null && v !== undefined) raw[key] = v;
-	}
-	const resolved = coerceSettings(raw);
+let MEMO: { key: string; snippets: InlineSnippets } | null = null;
 
+function compileSnippets(resolved: BibleSettings): InlineSnippets {
+	const cacheKey = JSON.stringify(resolved);
+	if (MEMO && MEMO.key === cacheKey) return MEMO.snippets;
+
+	let snippets: InlineSnippets;
 	if (!resolved.enabled) {
-		return { enabled: false, js: "", css: "" };
-	}
+		snippets = { enabled: false, js: "", css: "" };
+	} else {
+		const { pattern, flags } = buildClientPattern(resolved.language);
+		const clientSettings = {
+			enabled: resolved.enabled,
+			selectors: resolved.selectors,
+			theme: resolved.theme,
+			showVersionBadge: resolved.showVersionBadge,
+			showReadMore: resolved.showReadMore,
+			pattern,
+			patternFlags: flags,
+		};
 
-	const { pattern, flags } = buildClientPattern(resolved.language);
-	const clientSettings = {
-		enabled: resolved.enabled,
-		selectors: resolved.selectors,
-		theme: resolved.theme,
-		showVersionBadge: resolved.showVersionBadge,
-		showReadMore: resolved.showReadMore,
-		pattern,
-		patternFlags: flags,
-	};
+		const js = CLIENT_JS.replace("__SETTINGS__", JSON.stringify(clientSettings));
 
-	const js = CLIENT_JS.replace("__SETTINGS__", JSON.stringify(clientSettings));
-
-	// Only emit color overrides when the admin opted in. Otherwise leave the
-	// CSS variables unset so references inherit the host site's link styles.
-	const cssVars = resolved.useCustomColors
-		? `
+		// Only emit color overrides when the admin opted in. Otherwise leave the
+		// CSS variables unset so references inherit the host site's link styles.
+		const cssVars = resolved.useCustomColors
+			? `
 :root {
 	--midvash-link-color: ${resolved.linkColor};
 	--midvash-underline-color: ${resolved.underlineColor};
@@ -107,7 +114,37 @@ export async function getBibleByMidvashSnippets(getSetting: GetSetting): Promise
 	--midvash-underline-line: ${resolved.underlineLinks ? "underline" : "none"};
 }
 `
-		: "";
+			: "";
 
-	return { enabled: true, js, css: CLIENT_CSS + cssVars };
+		snippets = { enabled: true, js, css: CLIENT_CSS + cssVars };
+	}
+
+	MEMO = { key: cacheKey, snippets };
+	return snippets;
+}
+
+/**
+ * Resolve settings and return the JS+CSS ready to inline. Pass emdash's
+ * `getPluginSetting` (per-key); optionally also pass `getPluginSettings`
+ * (batch) so every key is read in one call instead of ~15 sequential reads —
+ * worthwhile because this runs from the layout for every request. The compiled
+ * output is memoized by settings hash, so the BOOKS regex isn't rebuilt unless
+ * the settings change. Missing keys fall back to defaults; persisted values
+ * are validated/coerced (see coerceSettings).
+ */
+export async function getBibleByMidvashSnippets(
+	getSetting: GetSetting,
+	getAllSettings?: GetAllSettings,
+): Promise<InlineSnippets> {
+	let raw: Record<string, unknown>;
+	if (getAllSettings) {
+		raw = (await getAllSettings(PLUGIN_ID)) ?? {};
+	} else {
+		raw = {};
+		for (const key of Object.keys(SETTINGS_FIELDS)) {
+			const v = await getSetting(PLUGIN_ID, key);
+			if (v !== null && v !== undefined) raw[key] = v;
+		}
+	}
+	return compileSnippets(coerceSettings(raw));
 }
