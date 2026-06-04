@@ -73,10 +73,10 @@
 		"@changesets/cli": "^2.31.0",
 		"@vitest/coverage-v8": "^4.1.8",
 		"astro": "^6.0.0",
-		"emdash": "^0.16.1",
+		"emdash": "^0.17.0",
 		"happy-dom": "^20.10.1",
 		"tsdown": "^0.22.1",
-		"typescript": "^5.6.0",
+		"typescript": "^6.0.3",
 		"vitest": "^4.1.8"
 	}
 }
