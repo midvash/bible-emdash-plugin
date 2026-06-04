@@ -3,7 +3,15 @@
 	"version": "0.1.0",
 	"description": "EmDash plugin: auto-detect Bible references in content and render verse tooltips on hover. Powered by the public Midvash API (https://api.midvash.com).",
 	"type": "module",
-	"keywords": ["emdash", "emdash-plugin", "cms", "bible", "midvash", "tooltip", "verses"],
+	"keywords": [
+		"emdash",
+		"emdash-plugin",
+		"cms",
+		"bible",
+		"midvash",
+		"tooltip",
+		"verses"
+	],
 	"license": "MIT",
 	"author": "Neto Gregório",
 	"homepage": "https://midvash.com",
@@ -15,21 +23,41 @@
 		"url": "https://github.com/midvash/emdash-plugin-bible/issues"
 	},
 	"exports": {
-		".": "./src/index.ts",
-		"./sandbox": "./src/sandbox-entry.ts",
-		"./runtime": "./src/runtime.ts",
-		"./middleware": "./src/middleware.ts"
+		".": {
+			"types": "./dist/index.d.mts",
+			"import": "./dist/index.mjs"
+		},
+		"./sandbox": {
+			"types": "./dist/sandbox-entry.d.mts",
+			"import": "./dist/sandbox-entry.mjs"
+		},
+		"./runtime": {
+			"types": "./dist/runtime.d.mts",
+			"import": "./dist/runtime.mjs"
+		},
+		"./middleware": {
+			"types": "./dist/middleware.d.mts",
+			"import": "./dist/middleware.mjs"
+		}
 	},
-	"files": ["src", "README.md", "README.pt-BR.md", "README.es.md"],
+	"files": [
+		"dist",
+		"README.md",
+		"README.pt-BR.md",
+		"README.es.md"
+	],
 	"scripts": {
-		"typecheck": "tsc --noEmit"
+		"build": "tsdown",
+		"typecheck": "tsc --noEmit",
+		"prepublishOnly": "npm run build"
 	},
 	"peerDependencies": {
-		"emdash": "^0.16.0"
+		"emdash": ">=0.16.0"
 	},
 	"devDependencies": {
 		"astro": "^6.0.0",
 		"emdash": "^0.16.1",
+		"tsdown": "^0.22.2",
 		"typescript": "^5.6.0"
 	}
 }
