@@ -14,7 +14,7 @@
  *   findReferences(text)  — scan free text and yield all matches with offsets
  */
 
-import { BOOKS, buildNameIndex, normalize } from "./books.ts";
+import { BOOKS, buildNameIndex, resolveSlug } from "./books.ts";
 
 export interface ParsedReference {
 	/** Canonical Midvash slug (e.g. "1-corinthians"). */
@@ -69,7 +69,7 @@ function buildPattern(): RegExp {
 const PATTERN = buildPattern();
 
 function lookupSlug(rawName: string): string | null {
-	return NAME_INDEX.get(normalize(rawName)) ?? null;
+	return resolveSlug(rawName, NAME_INDEX);
 }
 
 export function parseReference(text: string): ParsedReference | null {

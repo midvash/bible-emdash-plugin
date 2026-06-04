@@ -14,7 +14,7 @@
  * juice.
  */
 
-import { BOOKS, normalize, type Language } from "./books.ts";
+import { BOOKS, normalize, resolveSlug, type Language } from "./books.ts";
 import { buildReadMoreUrl } from "./midvash.ts";
 
 const SKIP_TAGS = new Set(["a", "code", "pre", "script", "style", "kbd", "samp", "textarea"]);
@@ -83,7 +83,7 @@ function transformText(text: string, opts: LinkifyOptions): string {
 	while ((m = re.exec(text)) !== null) {
 		const fullMatch = m[0];
 		const matchedName = m[1] ?? "";
-		const slug = idx.get(normalize(matchedName));
+		const slug = resolveSlug(matchedName, idx);
 		if (!slug) continue;
 		const chapter = Number.parseInt(m[2] ?? "", 10);
 		if (!Number.isFinite(chapter) || chapter < 1) continue;

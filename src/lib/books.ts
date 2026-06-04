@@ -9,9 +9,14 @@
  * normalizes both sides), but accents are preserved here for display.
  *
  * Abbreviation collisions to be aware of:
- *  - "Jo" in pt-BR is João, but isolated "Jó" with accent is Job.
+ *  - "Jó" (accent) is Job and "Jo" is João/John; they'd collide once accents are
+ *    stripped, so `resolveSlug`/`ACCENT_OVERRIDES` keep them distinct.
  *  - "Jn" can be João (PT-BR common) or Jonas in some traditions; we map
  *    "Jn" → John here. "Jonas/Jonás" full names disambiguate Jonah.
+ *
+ * Invariant: no two books may share a `softNormalize` form (an exact, accent-
+ * aware abbreviation), since that can't be disambiguated. test/books.test.ts
+ * enforces this.
  */
 
 export type Language = "pt-br" | "en" | "es";
@@ -293,7 +298,9 @@ export const BOOKS: readonly BookData[] = [
 		slug: "micah",
 		names: {
 			"pt-br": ["Miquéias", "Mq", "Miq"],
-			en: ["Micah", "Mic", "Mc"],
+			// "Mc" removed — it's Marcos/Mark's abbreviation (pt-BR/es); listing it
+			// here made "Mc" ambiguous between Micah and Mark.
+			en: ["Micah", "Mic"],
 			es: ["Miqueas", "Miq"],
 		},
 	},
@@ -587,6 +594,26 @@ export function normalize(s: string): string {
 		.trim();
 }
 
+/** Lowercase + drop periods/extra spaces but KEEP accents (NFC) — for disambiguation. */
+export function softNormalize(s: string): string {
+	return s
+		.normalize("NFC")
+		.toLowerCase()
+		.replace(/\./g, "")
+		.replace(/\s+/g, " ")
+		.trim();
+}
+
+/**
+ * Accent-sensitive overrides for abbreviations that collide ONLY after accents
+ * are stripped. "Jó" (Job) and "Jo" (João/John) both `normalize()` to "jo"; the
+ * accented form wins here so "Jó 1:1" resolves to Job, while plain "Jo 3:16"
+ * still falls through to John. Keys are `softNormalize`d (accent preserved).
+ */
+export const ACCENT_OVERRIDES: Readonly<Record<string, string>> = {
+	"jó": "job",
+};
+
 /** All recognized name variants → book slug (normalized keys). */
 export function buildNameIndex(): Map<string, string> {
 	const index = new Map<string, string>();
@@ -598,6 +625,15 @@ export function buildNameIndex(): Map<string, string> {
 		}
 	}
 	return index;
+}
+
+/**
+ * Resolve a raw (author-written) book name to a slug: accent-aware overrides
+ * first, then the accent-insensitive index. Shared by the parser and the SSR
+ * linkifier so both disambiguate identically.
+ */
+export function resolveSlug(rawName: string, index: Map<string, string>): string | null {
+	return ACCENT_OVERRIDES[softNormalize(rawName)] ?? index.get(normalize(rawName)) ?? null;
 }
 
 /** Display name for a book in a given language (canonical, first entry). */

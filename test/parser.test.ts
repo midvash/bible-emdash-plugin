@@ -99,3 +99,23 @@ describe("findReferences", () => {
 		expect(m.raw).toBe("GÊNESIS 1:1");
 	});
 });
+
+describe("ambiguous-abbreviation disambiguation", () => {
+	it('resolves "Jó" → Job and "Jo" → João/John by accent', () => {
+		expect(parseReference("Jó 1:1")?.slug).toBe("job");
+		expect(parseReference("JÓ 1:1")?.slug).toBe("job"); // accent + uppercase
+		expect(parseReference("Jo 3:16")?.slug).toBe("john");
+		expect(parseReference("João 3:16")?.slug).toBe("john");
+		expect(parseReference("Job 1:1")?.slug).toBe("job");
+	});
+
+	it('resolves "Mc" → Mark and "Mq" → Micah (no longer ambiguous)', () => {
+		expect(parseReference("Mc 1:1")?.slug).toBe("mark");
+		expect(parseReference("Mq 3:1")?.slug).toBe("micah");
+	});
+
+	it("disambiguates by accent inside free text too", () => {
+		const matches = [...findReferences("Leia Jó 1:1 e Mc 2:2")];
+		expect(matches.map((m) => m.slug)).toEqual(["job", "mark"]);
+	});
+});
