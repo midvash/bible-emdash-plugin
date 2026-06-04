@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.2
+
+### Patch Changes
+
+- [#46](https://github.com/midvash/emdash-plugin-bible/pull/46) [`60a792e`](https://github.com/midvash/emdash-plugin-bible/commit/60a792e0852f45d9bb6baac8f71410a679a6b7d8) Thanks [@onetogregorio](https://github.com/onetogregorio)! - Docs: fix `CHANGELOG.md` ordering — the prose intro had drifted between version
+  entries (Changesets prepends new versions right after the H1). Removed it so
+  entries stay newest-first.
+
 ## 0.2.1
 
 ### Patch Changes
