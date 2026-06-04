@@ -226,9 +226,21 @@ export const CLIENT_JS = String.raw`
 
 	function renderTooltip(tip, payload) {
 		var version = (payload.version || "").toUpperCase();
-		var badge = SETTINGS.showVersionBadge && version
-			? '<span class="midvash-tooltip__badge">' + escapeHtml(version) + "</span>"
-			: "";
+		var versionSlug = (payload.version || "").toLowerCase();
+		// Build the version index URL on midvash.com — same shape as the
+		// verse anchor, just truncated to /lang/version. Another in-document
+		// SEO link distinct from the article-body anchor (different target,
+		// passes additional juice to the version's page).
+		var versionHref = versionSlug
+			? safeHttpUrl("https://midvash.com/" + LANG + "/" + versionSlug)
+			: null;
+		var badge = SETTINGS.showVersionBadge && version && versionHref
+			? '<a class="midvash-tooltip__badge" href="' + escapeHtml(versionHref) +
+				'" title="' + escapeHtml(version) + ' on Midvash" rel="noopener">' +
+				escapeHtml(version) + "</a>"
+			: SETTINGS.showVersionBadge && version
+				? '<span class="midvash-tooltip__badge">' + escapeHtml(version) + "</span>"
+				: "";
 		var ref = escapeHtml(payload.reference || "");
 		var text = escapeHtml(payload.text || "");
 		// #42: only render the read-more link when readMoreUrl is http(s).
@@ -529,6 +541,16 @@ export const CLIENT_CSS = String.raw`
 	font-size: 0.7rem;
 	font-weight: 700;
 	letter-spacing: 0.05em;
+	/* The badge is an <a> since v0.4.0 — suppress the default link styling
+	   so it still reads as a pill. The hover/focus state is still a link
+	   affordance for users (slight brightness shift). */
+	text-decoration: none;
+	transition: filter 0.15s ease;
+}
+a.midvash-tooltip__badge:hover,
+a.midvash-tooltip__badge:focus-visible {
+	filter: brightness(0.95);
+	outline: none;
 }
 
 .midvash-tooltip__body {
