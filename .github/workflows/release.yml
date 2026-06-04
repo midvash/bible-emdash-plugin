@@ -38,6 +38,12 @@ jobs:
           commit: "chore: version packages"
           title: "chore: version packages"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Use a PAT (RELEASE_PR_TOKEN) when available so the "Version Packages"
+          # PR is authored by a user, not the github-actions[bot] — which means
+          # opening/updating that PR DOES trigger the CI workflow (the default
+          # GITHUB_TOKEN is intentionally barred from doing that, as an anti-loop
+          # guard). Falls back to GITHUB_TOKEN if the secret isn't set, so the
+          # release flow still works (the version PR just won't run CI).
+          GITHUB_TOKEN: ${{ secrets.RELEASE_PR_TOKEN || secrets.GITHUB_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: "true"
