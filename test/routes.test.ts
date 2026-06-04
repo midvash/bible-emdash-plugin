@@ -161,7 +161,10 @@ describe("versions route", () => {
 		const payload = { data: [{ slug: "naa", name: "NAA", language: "pt-br" }] };
 		const http = { async fetch() { return new Response(JSON.stringify(payload), { status: 200 }); } };
 		const out = (await routes.versions.handler({ request: { url: "http://localhost/versions?lang=pt-br" } }, makeCtx({ http }))) as any;
-		expect(out.data[0].slug).toBe("naa");
+		// Inner array, not double-wrapped — EmDash adds the { data: ... } envelope.
+		expect(Array.isArray(out)).toBe(true);
+		expect(out.data).toBeUndefined();
+		expect(out[0].slug).toBe("naa");
 	});
 
 	it("throws when upstream fails", async () => {
