@@ -118,6 +118,16 @@ describe("loadSettings (via the settings route)", () => {
 		expect(out.theme).toBe("dark");
 		expect(out.language).toBe("pt-br");
 	});
+
+	it("validates/coerces corrupt persisted values (kv.list path)", async () => {
+		const ctx = makeCtx({
+			kv: { "settings:theme": "neon", "settings:enabled": "false", "settings:language": "es" },
+		});
+		const out = (await routes.settings.handler({}, ctx)) as any;
+		expect(out.theme).toBe("auto"); // unknown enum -> default
+		expect(out.enabled).toBe(false); // stringy boolean coerced
+		expect(out.language).toBe("es"); // valid value kept
+	});
 });
 
 describe("lookup route", () => {

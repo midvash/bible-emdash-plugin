@@ -28,6 +28,7 @@ import {
 	DEFAULTS,
 	type Settings,
 	buildAdminFields,
+	coerceSetting,
 	loadSettings as loadSettingsFromKv,
 } from "./lib/settings.ts";
 
@@ -45,9 +46,10 @@ async function loadSettings(ctx: PluginContext): Promise<Settings> {
 			const out: Settings = { ...DEFAULTS };
 			for (const { key, value } of entries) {
 				const k = key.slice(SETTINGS_PREFIX.length);
-				if (k in DEFAULTS && value !== null && value !== undefined) {
-					(out as unknown as Record<string, unknown>)[k] = value;
-				}
+				if (!(k in DEFAULTS)) continue;
+				// Validate/coerce against the schema; ignore corrupt values.
+				const coerced = coerceSetting(k, value);
+				if (coerced !== undefined) (out as unknown as Record<string, unknown>)[k] = coerced;
 			}
 			return out;
 		} catch {

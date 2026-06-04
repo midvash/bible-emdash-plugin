@@ -248,18 +248,57 @@ export const SETTINGS_SCHEMA = {
 	},
 } as const;
 
+type SchemaField = (typeof SETTINGS_SCHEMA)[keyof typeof SETTINGS_SCHEMA];
+
+function coerceValue(def: SchemaField, raw: unknown): unknown {
+	switch (def.type) {
+		case "boolean":
+			if (typeof raw === "boolean") return raw;
+			if (raw === "true") return true;
+			if (raw === "false") return false;
+			return undefined;
+		case "number": {
+			const n = typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw) : NaN;
+			if (!Number.isFinite(n)) return undefined;
+			return Math.min(def.max, Math.max(def.min, n));
+		}
+		case "select":
+			return typeof raw === "string" && def.options.some((o) => o.value === raw)
+				? raw
+				: undefined;
+		case "string":
+			return typeof raw === "string" ? raw : undefined;
+	}
+}
+
+/**
+ * Validate and coerce one persisted setting against its schema field: type
+ * checks, enum membership for selects, and min/max clamping for numbers.
+ * Returns the coerced value, or `undefined` when the stored value can't be
+ * salvaged (a wrong type, an unknown enum, a non-numeric number) so the caller
+ * keeps the default. Used by both `loadSettings` here and the backend's
+ * `kv.list` fast path, so a corrupt KV value can never reach the client
+ * settings or the regex build.
+ */
+export function coerceSetting(key: string, raw: unknown): unknown {
+	if (raw === null || raw === undefined) return undefined;
+	const def = (SETTINGS_SCHEMA as Record<string, SchemaField>)[key];
+	return def ? coerceValue(def, raw) : undefined;
+}
+
 /**
  * Read all settings from the plugin KV store, falling back to `DEFAULTS` for
- * any key that hasn't been persisted yet. The getter is typed loosely so this
- * module never imports emdash's `PluginContext`.
+ * any key that hasn't been persisted yet — or whose stored value fails
+ * validation. The getter is typed loosely so this module never imports
+ * emdash's `PluginContext`.
  */
 export async function loadSettings(
 	get: (key: string) => Promise<unknown>,
 ): Promise<Settings> {
 	const out: Settings = { ...DEFAULTS };
 	for (const key of Object.keys(DEFAULTS) as Array<keyof Settings>) {
-		const v = await get(`settings:${key}`);
-		if (v !== null && v !== undefined) (out as unknown as Record<string, unknown>)[key] = v;
+		const coerced = coerceSetting(key, await get(`settings:${key}`));
+		if (coerced !== undefined) (out as unknown as Record<string, unknown>)[key] = coerced;
 	}
 	return out;
 }

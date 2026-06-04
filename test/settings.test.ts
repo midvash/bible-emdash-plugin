@@ -1,6 +1,12 @@
 import { describe, it, expect } from "vitest";
 
-import { DEFAULTS, SETTINGS_SCHEMA, buildAdminFields, loadSettings } from "../src/lib/settings.ts";
+import {
+	DEFAULTS,
+	SETTINGS_SCHEMA,
+	buildAdminFields,
+	coerceSetting,
+	loadSettings,
+} from "../src/lib/settings.ts";
 
 type Field = { type: string; action_id: string; label: string; initial_value: unknown; [k: string]: unknown };
 
@@ -76,5 +82,53 @@ describe("loadSettings", () => {
 	it("ignores undefined values from the getter", async () => {
 		const s = await loadSettings(async () => undefined);
 		expect(s).toEqual(DEFAULTS);
+	});
+
+	it("drops corrupt persisted values and keeps the default", async () => {
+		const stored: Record<string, unknown> = {
+			"settings:theme": "neon", // unknown enum
+			"settings:cacheTtlSeconds": "abc", // non-numeric
+			"settings:enabled": "false", // stringy boolean
+			"settings:language": "es", // valid
+		};
+		const s = await loadSettings(async (key) => stored[key] ?? null);
+		expect(s.theme).toBe(DEFAULTS.theme);
+		expect(s.cacheTtlSeconds).toBe(DEFAULTS.cacheTtlSeconds);
+		expect(s.enabled).toBe(false);
+		expect(s.language).toBe("es");
+	});
+});
+
+describe("coerceSetting (validation/coercion)", () => {
+	it("coerces stringy booleans, rejects junk", () => {
+		expect(coerceSetting("enabled", "false")).toBe(false);
+		expect(coerceSetting("enabled", "true")).toBe(true);
+		expect(coerceSetting("enabled", true)).toBe(true);
+		expect(coerceSetting("enabled", "maybe")).toBeUndefined();
+	});
+
+	it("accepts valid enum values, rejects unknown ones", () => {
+		expect(coerceSetting("theme", "dark")).toBe("dark");
+		expect(coerceSetting("language", "es")).toBe("es");
+		expect(coerceSetting("theme", "nope")).toBeUndefined();
+		expect(coerceSetting("underlineStyle", "zigzag")).toBeUndefined();
+	});
+
+	it("clamps numbers to min/max and parses numeric strings", () => {
+		expect(coerceSetting("cacheTtlSeconds", 999_999_999_999)).toBe(31_536_000);
+		expect(coerceSetting("apiTimeoutMs", 1)).toBe(500);
+		expect(coerceSetting("cacheTtlSeconds", "120")).toBe(120);
+		expect(coerceSetting("cacheTtlSeconds", "abc")).toBeUndefined();
+	});
+
+	it("rejects wrong-typed strings/numbers", () => {
+		expect(coerceSetting("defaultVersion", 123)).toBeUndefined();
+		expect(coerceSetting("selectors", 42)).toBeUndefined();
+	});
+
+	it("returns undefined for unknown keys and null/undefined", () => {
+		expect(coerceSetting("bogus", "x")).toBeUndefined();
+		expect(coerceSetting("language", null)).toBeUndefined();
+		expect(coerceSetting("language", undefined)).toBeUndefined();
 	});
 });
