@@ -15,8 +15,14 @@ import type { Language } from "./books.ts";
 export interface ClientStrings {
 	/** Shown in the tooltip body while the verse is being fetched. */
 	loading: string;
-	/** Shown in the tooltip body when the lookup fails. */
+	/** Shown when the lookup fails for network/timeout/5xx reasons. */
 	error: string;
+	/**
+	 * Shown when the upstream returns 404 — the reference parses but doesn't
+	 * exist (e.g. "John 99:99"). Distinguished from a transient `error` so
+	 * authors can spot a typo'd reference vs a load failure (issue #41).
+	 */
+	notFound: string;
 	/** The "read more" footer link label. */
 	readMore: string;
 	/** The connective in the header: `<reference> <on> Midvash`. */
@@ -27,18 +33,21 @@ const STRINGS: Record<Language, ClientStrings> = {
 	"pt-br": {
 		loading: "Carregando…",
 		error: "Não foi possível carregar este versículo.",
+		notFound: "Este versículo não existe nesta versão.",
 		readMore: "Ler mais ↗",
 		on: "no Midvash",
 	},
 	en: {
 		loading: "Loading…",
 		error: "Could not load this verse.",
+		notFound: "This verse does not exist in this version.",
 		readMore: "Read more ↗",
 		on: "on Midvash",
 	},
 	es: {
 		loading: "Cargando…",
 		error: "No se pudo cargar este versículo.",
+		notFound: "Este versículo no existe en esta versión.",
 		readMore: "Leer más ↗",
 		on: "en Midvash",
 	},

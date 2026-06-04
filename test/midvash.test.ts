@@ -74,17 +74,18 @@ describe("buildReadMoreUrl", () => {
 describe("fetchVerse", () => {
 	const ref = { slug: "john", matchedName: "João", chapter: 3, verse: 16, verseEnd: 16 };
 
-	it("hits the upstream API once, then serves from cache", async () => {
+	it("hits the upstream API once, then serves from cache (ok=true)", async () => {
 		const kv = makeKV();
 		const http = makeHttp(() => new Response(JSON.stringify(VERSE), { status: 200 }));
 
 		const first = await fetchVerse(ref, OPTS, kv, http);
-		expect(first?.data.text).toBe(VERSE.data.text);
+		expect(first.ok).toBe(true);
+		if (first.ok) expect(first.data.data.text).toBe(VERSE.data.text);
 		expect(http.calls).toBe(1);
 		expect(http.lastUrl).toBe("https://api.midvash.com/v1/naa/john/3/16");
 
 		const second = await fetchVerse(ref, OPTS, kv, http);
-		expect(second?.data.text).toBe(VERSE.data.text);
+		expect(second.ok).toBe(true);
 		expect(http.calls).toBe(1); // served from cache, no new request
 	});
 
@@ -102,20 +103,32 @@ describe("fetchVerse", () => {
 		expect(http.lastUrl).toBe("https://api.midvash.com/v1/naa/psalms/23");
 	});
 
-	it("returns null on a non-OK response", async () => {
+	it("returns kind=not-found on an upstream 404 (issue #41)", async () => {
 		const kv = makeKV();
 		const http = makeHttp(() => new Response("nope", { status: 404 }));
-		expect(await fetchVerse(ref, OPTS, kv, http)).toBeNull();
+		const r = await fetchVerse(ref, OPTS, kv, http);
+		expect(r.ok).toBe(false);
+		if (!r.ok) expect(r.kind).toBe("not-found");
 	});
 
-	it("returns null when the request throws", async () => {
+	it("returns kind=fetch-error on an upstream 5xx (issue #41)", async () => {
+		const kv = makeKV();
+		const http = makeHttp(() => new Response("oops", { status: 503 }));
+		const r = await fetchVerse(ref, OPTS, kv, http);
+		expect(r.ok).toBe(false);
+		if (!r.ok) expect(r.kind).toBe("fetch-error");
+	});
+
+	it("returns kind=fetch-error when the request throws", async () => {
 		const kv = makeKV();
 		const http: HttpLike = {
 			async fetch() {
 				throw new Error("network down");
 			},
 		};
-		expect(await fetchVerse(ref, OPTS, kv, http)).toBeNull();
+		const r = await fetchVerse(ref, OPTS, kv, http);
+		expect(r.ok).toBe(false);
+		if (!r.ok) expect(r.kind).toBe("fetch-error");
 	});
 
 	it("bypasses the cache when cacheEnabled is false", async () => {
@@ -126,6 +139,22 @@ describe("fetchVerse", () => {
 		await fetchVerse(ref, opts, kv, http);
 		expect(http.calls).toBe(2);
 		expect(kv.store.size).toBe(0);
+	});
+
+	it("does NOT cache a not-found result (so a fix-and-retry works)", async () => {
+		const kv = makeKV();
+		let n = 0;
+		const http = makeHttp(() => {
+			n++;
+			return n === 1
+				? new Response("nope", { status: 404 })
+				: new Response(JSON.stringify(VERSE), { status: 200 });
+		});
+		const first = await fetchVerse(ref, OPTS, kv, http);
+		expect(first.ok).toBe(false);
+		const second = await fetchVerse(ref, OPTS, kv, http);
+		expect(second.ok).toBe(true);
+		expect(http.calls).toBe(2);
 	});
 });
 

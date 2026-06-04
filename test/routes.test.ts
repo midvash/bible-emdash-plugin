@@ -159,10 +159,20 @@ describe("lookup route", () => {
 		await expect(routes.lookup.handler(rc, makeCtx({ http }))).rejects.toThrow(/Unrecognized/);
 	});
 
-	it("throws when upstream lookup fails", async () => {
+	it("returns error=fetch-error when upstream is 5xx (issue #41)", async () => {
 		const http = { async fetch() { return new Response("x", { status: 500 }); } };
 		const rc = { request: { url: "http://localhost/lookup?ref=" + encodeURIComponent("João 3:16") } };
-		await expect(routes.lookup.handler(rc, makeCtx({ http }))).rejects.toThrow(/Upstream/);
+		const out = await routes.lookup.handler(rc, makeCtx({ http }));
+		expect(out.error).toBe("fetch-error");
+		expect(out.reference).toContain("3:16");
+	});
+
+	it("returns error=not-found when upstream is 404 (issue #41)", async () => {
+		const http = { async fetch() { return new Response("nope", { status: 404 }); } };
+		const rc = { request: { url: "http://localhost/lookup?ref=" + encodeURIComponent("João 99:99") } };
+		const out = await routes.lookup.handler(rc, makeCtx({ http }));
+		expect(out.error).toBe("not-found");
+		expect(out.reference).toContain("99:99");
 	});
 });
 

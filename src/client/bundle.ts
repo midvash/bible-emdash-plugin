@@ -20,6 +20,7 @@ export const CLIENT_JS = String.raw`
 	var STRINGS = SETTINGS.strings || {
 		loading: "Carregando…",
 		error: "Não foi possível carregar este versículo.",
+		notFound: "Este versículo não existe nesta versão.",
 		readMore: "Ler mais ↗",
 		on: "no Midvash",
 	};
@@ -242,13 +243,19 @@ export const CLIENT_JS = String.raw`
 			(more ? '<footer class="midvash-tooltip__footer">' + more + "</footer>" : "");
 	}
 
-	function renderError(tip, ref) {
+	function renderError(tip, ref, kind) {
+		// kind ∈ {"not-found", "fetch-error"} — issue #41. "not-found" means
+		// the reference parses but the verse doesn't exist in this version
+		// (e.g. "John 99:99"). Anything else is a transient load failure.
+		var msg = kind === "not-found"
+			? (STRINGS.notFound || STRINGS.error)
+			: STRINGS.error;
 		tip.innerHTML =
 			'<header class="midvash-tooltip__header">' +
 				'<span class="midvash-tooltip__ref">' + escapeHtml(ref) + "</span>" +
 			"</header>" +
 			'<div class="midvash-tooltip__body midvash-tooltip__body--error" aria-live="polite" aria-atomic="true">' +
-				escapeHtml(STRINGS.error) +
+				escapeHtml(msg) +
 			"</div>";
 	}
 
@@ -287,11 +294,16 @@ export const CLIENT_JS = String.raw`
 		return fetch(url, { headers: { Accept: "application/json" } })
 			.then(function (r) { return r.ok ? r.json() : Promise.reject(r); })
 			.then(function (raw) {
-				// EmDash wraps route returns in { data: ... }. Unwrap if present.
-				var data = raw && typeof raw === "object" && raw.data && raw.data.text
+				// EmDash wraps route returns in { data: ... }. Unwrap if the
+				// inner object looks like our payload (has 'text' OR 'error'
+				// — both are valid /lookup responses per issue #41).
+				var data = raw && typeof raw === "object" && raw.data &&
+					(raw.data.text || raw.data.error)
 					? raw.data
 					: raw;
-				SESSION_CACHE.set(ref, data);
+				// Don't cache the error responses — a fix-and-retry should
+				// hit the upstream again.
+				if (data && data.text) SESSION_CACHE.set(ref, data);
 				return data;
 			});
 	}
@@ -316,12 +328,16 @@ export const CLIENT_JS = String.raw`
 		lookup(ref).then(function (payload) {
 			if (payload && payload.text) {
 				renderTooltip(tip, payload);
+			} else if (payload && payload.error) {
+				// Issue #41: server distinguishes "verse not found" (404)
+				// from "couldn't load" (network/timeout/5xx).
+				renderError(tip, ref, payload.error);
 			} else {
-				renderError(tip, ref);
+				renderError(tip, ref, "fetch-error");
 			}
 			positionTooltip(target, tip);
 		}).catch(function () {
-			renderError(tip, ref);
+			renderError(tip, ref, "fetch-error");
 			positionTooltip(target, tip);
 		});
 	}

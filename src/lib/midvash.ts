@@ -75,15 +75,36 @@ export interface HttpLike {
 }
 
 /**
+ * Tagged result for {@link fetchVerse} so callers can distinguish "the
+ * reference doesn't exist on midvash.com" from "the request failed in some
+ * other way" (issue #41). Previously both collapsed to `null` and the
+ * tooltip showed a generic "couldn't load" error.
+ *
+ * - `ok: true`  — `data` is the upstream verse payload.
+ * - `kind: "not-found"`    — upstream returned 404 (e.g. "John 99:99"). Surface
+ *                            a typo'd-reference message to the user; don't
+ *                            cache.
+ * - `kind: "fetch-error"`  — network failure, timeout, 5xx, or any other
+ *                            non-404 non-OK status. Generic error.
+ */
+export type VerseResult =
+	| { ok: true; data: VerseResponse }
+	| { ok: false; kind: "not-found" | "fetch-error" };
+
+/**
  * Resolve a parsed reference to a verse, using KV cache when possible.
- * Returns null on network/HTTP error so callers can degrade gracefully.
+ *
+ * Returns a {@link VerseResult} that distinguishes "verse doesn't exist"
+ * (upstream 404) from "request failed" (network/timeout/5xx). 404s are
+ * intentionally NOT cached so a corrected reference reaches the upstream
+ * the next time it's queried.
  */
 export async function fetchVerse(
 	ref: ParsedReference,
 	opts: FetchOptions,
 	kv: KVLike,
 	http: HttpLike,
-): Promise<VerseResponse | null> {
+): Promise<VerseResult> {
 	const verseStart = ref.verse ?? 0;
 	const verseEnd = ref.verseEnd ?? 0;
 	const cacheKey = `cache:verse:${opts.version}:${ref.slug}:${ref.chapter}:${verseStart}-${verseEnd}`;
@@ -91,7 +112,7 @@ export async function fetchVerse(
 	if (opts.cacheEnabled) {
 		const cached = await kv.get<{ at: number; data: VerseResponse }>(cacheKey);
 		if (cached && Date.now() - cached.at < opts.cacheTtlSeconds * 1000) {
-			return cached.data;
+			return { ok: true, data: cached.data };
 		}
 	}
 
@@ -112,14 +133,15 @@ export async function fetchVerse(
 			signal: controller.signal,
 			headers: { Accept: "application/json" },
 		});
-		if (!res.ok) return null;
+		if (res.status === 404) return { ok: false, kind: "not-found" };
+		if (!res.ok) return { ok: false, kind: "fetch-error" };
 		const data = (await res.json()) as VerseResponse;
 		if (opts.cacheEnabled) {
 			await kv.set(cacheKey, { at: Date.now(), data });
 		}
-		return data;
+		return { ok: true, data };
 	} catch {
-		return null;
+		return { ok: false, kind: "fetch-error" };
 	} finally {
 		clearTimeout(timer);
 	}

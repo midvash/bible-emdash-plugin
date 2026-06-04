@@ -138,7 +138,7 @@ export default {
 
 				if (!ctx.http) throw new Error("Network capability missing");
 
-				const verse = await fetchVerse(
+				const result = await fetchVerse(
 					parsed,
 					{
 						version,
@@ -150,8 +150,6 @@ export default {
 					ctx.http,
 				);
 
-				if (!verse) throw new Error("Upstream lookup failed");
-
 				// Build the display reference in the requested language, preferring
 				// the author's exact matched name (preserves casing/accents), then
 				// the canonical name in `language`.
@@ -162,6 +160,18 @@ export default {
 				const displayRef =
 					`${parsed.matchedName || displayName(parsed.slug, language)} ${parsed.chapter}${versePart}`.trim();
 
+				if (!result.ok) {
+					// Issue #41: distinguish "verse not found" (404) from
+					// "couldn't load" (network/timeout/5xx) so the client can
+					// surface a clearer message to the author.
+					return {
+						error: result.kind,
+						reference: displayRef,
+						version,
+					};
+				}
+
+				const verse = result.data;
 				return {
 					reference: displayRef,
 					text: verse.data.text,

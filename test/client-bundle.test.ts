@@ -340,3 +340,67 @@ describe("client bundle (defense-in-depth — issue #42)", () => {
 		expect(link.getAttribute("href")).toBe("https://midvash.com/pt-br/naa/joao/3/16");
 	});
 });
+
+describe("client bundle (error UX — issue #41)", () => {
+	// /lookup now returns either { text, … } (success) or { error: "not-found"
+	// | "fetch-error", reference, version } (failure). The client must render
+	// a distinct message so authors can tell a typo'd reference apart from a
+	// transient load failure.
+
+	it("shows the 'verse not found' string when /lookup returns error=not-found", async () => {
+		(globalThis as any).fetch = vi.fn(async () => ({
+			ok: true,
+			json: async () => ({
+				data: {
+					error: "not-found",
+					reference: "João 99:99",
+					version: "naa",
+				},
+			}),
+		}));
+		document.body.innerHTML = "<article><p>João 99:99</p></article>";
+		loadClient();
+		const ref = document.querySelector(".midvash-ref")!;
+		ref.dispatchEvent(new Event("mouseover", { bubbles: true }));
+		await tick();
+		await tick();
+		const body = document.querySelector(".midvash-tooltip__body")!;
+		expect(body.textContent).toContain("não existe");
+		expect(body.textContent).not.toContain("Não foi possível carregar");
+	});
+
+	it("shows the generic load-failure string when /lookup returns error=fetch-error", async () => {
+		(globalThis as any).fetch = vi.fn(async () => ({
+			ok: true,
+			json: async () => ({
+				data: {
+					error: "fetch-error",
+					reference: "João 3:16",
+					version: "naa",
+				},
+			}),
+		}));
+		document.body.innerHTML = "<article><p>João 3:16</p></article>";
+		loadClient();
+		const ref = document.querySelector(".midvash-ref")!;
+		ref.dispatchEvent(new Event("mouseover", { bubbles: true }));
+		await tick();
+		await tick();
+		const body = document.querySelector(".midvash-tooltip__body")!;
+		expect(body.textContent).toContain("Não foi possível carregar");
+	});
+
+	it("falls back to generic error when fetch itself rejects", async () => {
+		(globalThis as any).fetch = vi.fn(async () => {
+			throw new Error("network down");
+		});
+		document.body.innerHTML = "<article><p>João 3:16</p></article>";
+		loadClient();
+		const ref = document.querySelector(".midvash-ref")!;
+		ref.dispatchEvent(new Event("mouseover", { bubbles: true }));
+		await tick();
+		await tick();
+		const body = document.querySelector(".midvash-tooltip__body")!;
+		expect(body.textContent).toContain("Não foi possível carregar");
+	});
+});
