@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.1
+
+### Patch Changes
+
+- [#43](https://github.com/midvash/emdash-plugin-bible/pull/43) [`026847f`](https://github.com/midvash/emdash-plugin-bible/commit/026847fe99aeb53f2f937d6037cac197f3215bf6) Thanks [@onetogregorio](https://github.com/onetogregorio)! - Fix ambiguous book abbreviations. "Jó" now resolves to **Job** (not João/John) via
+  an accent-aware override — plain "Jo" still resolves to João/John. "Mc" now
+  resolves only to **Mark** ("Mc" was wrongly also listed under Micah's English
+  abbreviations). Adds a guard test that fails if any two books ever share the same
+  accent-aware abbreviation.
+
 All notable changes to `@midvash/emdash-plugin-bible` are documented here.
 This project follows [Semantic Versioning](https://semver.org/) (pre-1.0: minor
 bumps may include breaking changes).

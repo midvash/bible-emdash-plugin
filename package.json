@@ -1,6 +1,6 @@
 {
 	"name": "@midvash/emdash-plugin-bible",
-	"version": "0.2.0",
+	"version": "0.2.1",
 	"description": "EmDash plugin: auto-detect Bible references in content and render verse tooltips on hover. Powered by the public Midvash API (https://api.midvash.com).",
 	"type": "module",
 	"keywords": [
