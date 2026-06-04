@@ -1,0 +1,21 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", ":dependencyDashboard"],
+  "packageRules": [
+    {
+      "description": "Auto-merge patch bumps of the Bible plugin (bug fixes).",
+      "matchPackageNames": ["@midvash/emdash-plugin-bible"],
+      "matchUpdateTypes": ["patch"],
+      "automerge": true,
+      "automergeType": "pr",
+      "labels": ["plugin-bump"]
+    },
+    {
+      "description": "Review minor/major plugin bumps (pre-1.0: minor may break).",
+      "matchPackageNames": ["@midvash/emdash-plugin-bible"],
+      "matchUpdateTypes": ["minor", "major"],
+      "automerge": false,
+      "labels": ["plugin-bump", "review-needed"]
+    }
+  ]
+}

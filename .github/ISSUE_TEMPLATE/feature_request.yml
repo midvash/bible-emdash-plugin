@@ -1,0 +1,33 @@
+name: "💡 Feature request"
+description: "Suggest a new book name, Bible version, language, or capability."
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What's missing or painful?
+      placeholder: "The Spanish RVR1909 version isn't selectable, but the API supports it."
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      placeholder: "Add rvr1909 to the version list / recognize Italian book names / ..."
+    validations:
+      required: true
+
+  - type: input
+    id: project
+    attributes:
+      label: Requesting project
+      placeholder: "blog-b"
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this isn't a duplicate.
+          required: true

@@ -1,7 +1,9 @@
 node_modules/
 dist/
+.emdash-bundle-tmp/
 *.log
 .DS_Store
 .env
 .env.*
 *.tgz
+*.tar.gz
