@@ -440,6 +440,123 @@ describe("client bundle (error UX — issue #41)", () => {
 	});
 });
 
+describe("client bundle (SEO — version badge is a link)", () => {
+	// The version badge ("NAA", "NIV", "ACF", …) used to be a span. Now it's
+	// an <a> pointing at the version's index page on midvash.com — another
+	// SEO target distinct from the verse link in the article body. Same
+	// contract as the main anchor: no nofollow, no target=_blank.
+
+	it("renders the badge as an <a>, not a <span>", async () => {
+		document.body.innerHTML = "<article><p>João 3:16</p></article>";
+		loadClient();
+		const ref = document.querySelector(".midvash-ref")!;
+		ref.dispatchEvent(new Event("mouseover", { bubbles: true }));
+		await tick();
+		await tick();
+		const badge = document.querySelector(".midvash-tooltip__badge");
+		expect(badge).toBeTruthy();
+		expect(badge?.tagName).toBe("A");
+	});
+
+	it("badge href points at /{lang}/{version} on midvash.com", async () => {
+		document.body.innerHTML = "<article><p>João 3:16</p></article>";
+		loadClient();
+		const ref = document.querySelector(".midvash-ref")!;
+		ref.dispatchEvent(new Event("mouseover", { bubbles: true }));
+		await tick();
+		await tick();
+		const badge = document.querySelector(".midvash-tooltip__badge") as HTMLAnchorElement;
+		expect(badge.getAttribute("href")).toBe("https://midvash.com/pt-br/naa");
+	});
+
+	it("badge carries rel=noopener and NO nofollow (juice passes)", async () => {
+		document.body.innerHTML = "<article><p>João 3:16</p></article>";
+		loadClient();
+		const ref = document.querySelector(".midvash-ref")!;
+		ref.dispatchEvent(new Event("mouseover", { bubbles: true }));
+		await tick();
+		await tick();
+		const badge = document.querySelector(".midvash-tooltip__badge") as HTMLAnchorElement;
+		const rel = badge.getAttribute("rel") || "";
+		expect(rel).toContain("noopener");
+		expect(rel).not.toContain("nofollow");
+	});
+
+	it("badge carries title=<version> for crawler context", async () => {
+		document.body.innerHTML = "<article><p>João 3:16</p></article>";
+		loadClient();
+		const ref = document.querySelector(".midvash-ref")!;
+		ref.dispatchEvent(new Event("mouseover", { bubbles: true }));
+		await tick();
+		await tick();
+		const badge = document.querySelector(".midvash-tooltip__badge") as HTMLAnchorElement;
+		// The title can include the brand for context — at minimum it carries
+		// the version slug so a screen-reader user knows where the link goes.
+		expect(badge.getAttribute("title") || "").toMatch(/NAA|naa/);
+	});
+
+	it("badge href uses the LOOKUP payload's version (not just settings default)", async () => {
+		// /lookup may return a version different from the user-configured
+		// default (e.g. when ?v= is passed). The badge URL must follow.
+		(globalThis as any).fetch = vi.fn(async () => ({
+			ok: true,
+			json: async () => ({
+				data: {
+					reference: "João 3:16",
+					text: "Porque Deus amou o mundo...",
+					version: "acf",
+					readMoreUrl: "https://midvash.com/pt-br/acf/joao/3/16",
+				},
+			}),
+		}));
+		document.body.innerHTML = "<article><p>João 3:16</p></article>";
+		loadClient();
+		const ref = document.querySelector(".midvash-ref")!;
+		ref.dispatchEvent(new Event("mouseover", { bubbles: true }));
+		await tick();
+		await tick();
+		const badge = document.querySelector(".midvash-tooltip__badge") as HTMLAnchorElement;
+		expect(badge.getAttribute("href")).toBe("https://midvash.com/pt-br/acf");
+	});
+
+	it("badge is omitted when showVersionBadge is false (no link, no markup)", async () => {
+		document.body.innerHTML = "<article><p>João 3:16</p></article>";
+		loadClient({ showVersionBadge: false });
+		const ref = document.querySelector(".midvash-ref")!;
+		ref.dispatchEvent(new Event("mouseover", { bubbles: true }));
+		await tick();
+		await tick();
+		expect(document.querySelector(".midvash-tooltip__badge")).toBeNull();
+	});
+
+	it("badge is dropped when the version slug fails the scheme guard (defense-in-depth)", async () => {
+		// Same #42 logic as readMoreUrl — only http(s) schemes survive.
+		// A malformed version like '../../../etc' would build an invalid URL;
+		// we don't expect this in practice (server-controlled), but the URL
+		// constructor must produce an https URL or the badge falls back to
+		// a span. Lock the contract.
+		(globalThis as any).fetch = vi.fn(async () => ({
+			ok: true,
+			json: async () => ({
+				data: {
+					reference: "João 3:16",
+					text: "Porque Deus amou o mundo...",
+					version: "", // empty version → no version page → no link
+					readMoreUrl: "https://midvash.com/pt-br/naa/joao/3/16",
+				},
+			}),
+		}));
+		document.body.innerHTML = "<article><p>João 3:16</p></article>";
+		loadClient();
+		const ref = document.querySelector(".midvash-ref")!;
+		ref.dispatchEvent(new Event("mouseover", { bubbles: true }));
+		await tick();
+		await tick();
+		// Empty version → no badge at all (matches current empty-version behavior).
+		expect(document.querySelector(".midvash-tooltip__badge")).toBeNull();
+	});
+});
+
 describe("client bundle (inline-script </ escape regression — production hotfix)", () => {
 	// Reproduces the failure observed at https://samaragregorio.com.br/.
 	// EmDash/Astro escape every literal `</` in inline script content to `<\/`
