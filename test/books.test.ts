@@ -1,6 +1,13 @@
 import { describe, it, expect } from "vitest";
 
-import { BOOKS, buildNameIndex, displayName, normalize } from "../src/lib/books.ts";
+import {
+	BOOKS,
+	buildNameIndex,
+	displayName,
+	normalize,
+	resolveSlug,
+	softNormalize,
+} from "../src/lib/books.ts";
 
 describe("BOOKS data", () => {
 	it("has the 66 Protestant-canon books", () => {
@@ -10,6 +17,24 @@ describe("BOOKS data", () => {
 	it("has unique slugs", () => {
 		const slugs = BOOKS.map((b) => b.slug);
 		expect(new Set(slugs).size).toBe(slugs.length);
+	});
+
+	it("has no two books sharing an accent-aware (softNormalize) abbreviation", () => {
+		// A same-exact-text abbreviation on two books can't be disambiguated.
+		// (This guard caught "Mc" being listed on both Micah and Mark.)
+		const byKey = new Map<string, Set<string>>();
+		for (const b of BOOKS) {
+			for (const lang of Object.keys(b.names) as Array<keyof typeof b.names>) {
+				for (const n of b.names[lang]) {
+					const k = softNormalize(n);
+					let set = byKey.get(k);
+					if (!set) byKey.set(k, (set = new Set()));
+					set.add(b.slug);
+				}
+			}
+		}
+		const ambiguous = [...byKey.entries()].filter(([, s]) => s.size > 1).map(([k]) => k);
+		expect(ambiguous).toEqual([]);
 	});
 
 	it("provides names for every language on every book", () => {
@@ -48,14 +73,15 @@ describe("buildNameIndex", () => {
 		expect(index.get(normalize("Jn"))).toBe("john");
 	});
 
-	// KNOWN LIMITATION: normalize() strips accents, so "Jó" (Job) and "Jo"
-	// (abbrev. of João) both collapse to "jo". John is defined after Job in
-	// BOOKS, so it wins the key. The unaccented "Job" still resolves correctly.
-	it('documents the "Jó"/"Jo" accent collision (resolves to John, not Job)', () => {
+	it('disambiguates "Jó" → Job vs "Jo" → John (accent-aware override)', () => {
+		// The flat index alone still collides ("jo" → john, inserted last)…
 		expect(normalize("Jó")).toBe("jo");
-		expect(normalize("Jo")).toBe("jo");
 		expect(index.get("jo")).toBe("john");
-		expect(index.get("job")).toBe("job"); // unaccented "Job" is unaffected
+		// …but resolveSlug checks the accent before falling back to the index.
+		expect(resolveSlug("Jó", index)).toBe("job");
+		expect(resolveSlug("Jo", index)).toBe("john");
+		expect(resolveSlug("João", index)).toBe("john");
+		expect(resolveSlug("Job", index)).toBe("job");
 	});
 });
 
