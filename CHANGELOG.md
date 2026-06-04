@@ -10,10 +10,6 @@
   abbreviations). Adds a guard test that fails if any two books ever share the same
   accent-aware abbreviation.
 
-All notable changes to `@midvash/emdash-plugin-bible` are documented here.
-This project follows [Semantic Versioning](https://semver.org/) (pre-1.0: minor
-bumps may include breaking changes).
-
 ## 0.2.0 — 2026-06-04
 
 Correctness, EmDash-standards compliance, build/distribution, and a large test
