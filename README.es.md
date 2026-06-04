@@ -61,6 +61,13 @@ import { bibleLinkifier } from "@midvash/emdash-plugin-bible/middleware";
 export const onRequest = sequence(bibleLinkifier());
 ```
 
+**Compensación:** el middleware reescribe todo el HTML de cada página
+(`response.text()` → transforma → nuevo `Response`), así que añade CPU/latencia en
+cada request — actívalo cuando el link equity de SEO importe más que ese coste por
+página. El script del cliente detecta esas anclas de SSR y solo adjunta los
+listeners a ellas (nunca duplica). Se compone con otros middlewares vía
+`sequence(...)`.
+
 ## Configuración
 
 Abre `/_emdash/admin/plugins/bible-by-midvash/settings` en el admin de EmDash. Ajustes principales:
