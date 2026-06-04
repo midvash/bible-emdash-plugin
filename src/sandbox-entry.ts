@@ -179,7 +179,11 @@ export default {
 				if (!ctx.http) throw new Error("Network capability missing");
 				const data = await fetchVersions(lang, settings.apiTimeoutMs, ctx.kv, ctx.http);
 				if (!data) throw new Error("Upstream failed");
-				return data;
+				// fetchVersions already returns `{ data: [...] }`, and EmDash wraps a
+				// route's return value in `{ data: ... }` — returning it whole would
+				// double-wrap to `{ data: { data: [...] } }`. Return the inner array so
+				// consumers get `{ data: [...] }`, matching /lookup.
+				return data.data;
 			},
 		},
 
