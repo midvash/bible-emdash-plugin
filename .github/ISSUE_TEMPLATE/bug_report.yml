@@ -1,0 +1,96 @@
+name: "🐞 Bug report"
+description: "Something doesn't work. Include the exact input so it can become a failing test."
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report! The most useful bug reports give the **exact input**
+        and the **expected vs actual** output — that turns straight into a failing
+        test. Please search existing issues first to avoid duplicates.
+
+  - type: input
+    id: version
+    attributes:
+      label: Plugin version
+      description: "Output of `npm ls @midvash/emdash-plugin-bible` in the affected project."
+      placeholder: "0.2.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install-mode
+    attributes:
+      label: Install mode
+      description: "Trusted = npm + astro.config (tooltips work). Sandboxed = marketplace tarball (JSON API only)."
+      options:
+        - "Trusted (in-process, npm + astro.config)"
+        - "Sandboxed (marketplace)"
+        - "Not sure"
+    validations:
+      required: true
+
+  - type: input
+    id: project
+    attributes:
+      label: Reporting project
+      description: "Which site/repo hit this (for traceability)."
+      placeholder: "blog-a"
+
+  - type: dropdown
+    id: language
+    attributes:
+      label: Configured language
+      options: ["pt-br", "en", "es", "other / not sure"]
+    validations:
+      required: true
+
+  - type: input
+    id: bible-version
+    attributes:
+      label: Configured default version
+      placeholder: "naa"
+
+  - type: textarea
+    id: input
+    attributes:
+      label: Exact input
+      description: "The exact reference, text, or HTML that misbehaves. This becomes the test case."
+      placeholder: |
+        Reference: "Cânticos 2:1"
+        or HTML: <article><p>Veja Jó 1:1</p></article>
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      placeholder: '"Jó 1:1" should resolve to the book of Job and show its verse.'
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      placeholder: '"Jó 1:1" resolves to John instead of Job (no tooltip / wrong verse).'
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Steps / context (optional)
+      description: "Anything else — console errors, screenshots, network responses from /lookup."
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues (open and closed) and this isn't a duplicate.
+          required: true
+        - label: I'm on the latest published version (or noted the version above).
+          required: true

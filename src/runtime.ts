@@ -21,65 +21,37 @@
  *   )}
  */
 
-import { BOOKS, type Language } from "./lib/books.ts";
-import { CLIENT_CSS, CLIENT_JS } from "./client/bundle.ts";
+import { buildClientPattern } from "./lib/pattern.ts";
+import { buildClientAssets } from "./lib/client-assets.ts";
+import { DEFAULTS as ALL_DEFAULTS, CLIENT_SETTING_KEYS, type Settings } from "./lib/settings.ts";
 
-export interface BibleByMidvashSettings {
-	enabled: boolean;
-	language: Language;
-	defaultVersion: string;
-	selectors: string;
-	theme: "auto" | "light" | "dark" | "sepia";
-	/**
-	 * When false (default), the plugin does NOT override link/underline styles
-	 * — references inherit the site's existing link color and decoration. When
-	 * true, the linkColor / underline* values below take effect.
-	 */
-	useCustomColors: boolean;
-	linkColor: string;
-	underlineLinks: boolean;
-	underlineColor: string;
-	underlineStyle: "solid" | "dashed" | "dotted" | "wavy";
-	showVersionBadge: boolean;
-	showReadMore: boolean;
-}
+/**
+ * The subset of settings relevant to client-side rendering (no server-only
+ * fields like cache/timeout). Derived from the canonical `Settings` shape so
+ * it can't drift from the full schema.
+ */
+export type BibleByMidvashSettings = Pick<Settings, (typeof CLIENT_SETTING_KEYS)[number]>;
 
+/** Client-relevant defaults, sourced from the single `lib/settings.ts` table. */
 export const DEFAULTS: BibleByMidvashSettings = {
-	enabled: true,
-	language: "pt-br",
-	defaultVersion: "naa",
-	selectors: "article\n.prose\n.post-content\nmain",
-	theme: "auto",
-	useCustomColors: false,
-	linkColor: "#B17027",
-	underlineLinks: false,
-	underlineColor: "#E8B45A",
-	underlineStyle: "solid",
-	showVersionBadge: true,
-	showReadMore: true,
+	enabled: ALL_DEFAULTS.enabled,
+	language: ALL_DEFAULTS.language,
+	defaultVersion: ALL_DEFAULTS.defaultVersion,
+	selectors: ALL_DEFAULTS.selectors,
+	theme: ALL_DEFAULTS.theme,
+	useCustomColors: ALL_DEFAULTS.useCustomColors,
+	linkColor: ALL_DEFAULTS.linkColor,
+	underlineLinks: ALL_DEFAULTS.underlineLinks,
+	underlineColor: ALL_DEFAULTS.underlineColor,
+	underlineStyle: ALL_DEFAULTS.underlineStyle,
+	showVersionBadge: ALL_DEFAULTS.showVersionBadge,
+	showReadMore: ALL_DEFAULTS.showReadMore,
 };
 
 const PLUGIN_ID = "bible-by-midvash";
 
-/**
- * Build the regex (string) that the client uses to scan the DOM.
- * Includes the requested language plus English book names (people often
- * mix languages and Latin abbreviations are universal).
- */
-export function buildClientPattern(language: Language): { pattern: string; flags: string } {
-	const names = new Set<string>();
-	for (const book of BOOKS) {
-		for (const n of book.names[language]) names.add(n);
-		for (const n of book.names.en) names.add(n);
-	}
-	const sorted = [...names].sort((a, b) => b.length - a.length);
-	const escaped = sorted.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
-	const namePattern = escaped.join("|");
-	return {
-		pattern: `(?<![\\p{L}\\p{N}])(?:${namePattern})\\s*\\d{1,3}(?:\\s*[:.]\\s*\\d{1,3}(?:\\s*[-–—]\\s*\\d{1,3})?)?(?![\\p{L}])`,
-		flags: "giu",
-	};
-}
+/** Re-exported from `lib/pattern.ts` for back-compat with earlier imports. */
+export { buildClientPattern };
 
 /**
  * Generic getter shape — `getPluginSetting(pluginId, key)` from `emdash`.
@@ -108,31 +80,6 @@ export async function getBibleByMidvashSnippets(getSetting: GetSetting): Promise
 		return { enabled: false, js: "", css: "" };
 	}
 
-	const { pattern, flags } = buildClientPattern(resolved.language);
-	const clientSettings = {
-		enabled: resolved.enabled,
-		selectors: resolved.selectors,
-		theme: resolved.theme,
-		showVersionBadge: resolved.showVersionBadge,
-		showReadMore: resolved.showReadMore,
-		pattern,
-		patternFlags: flags,
-	};
-
-	const js = CLIENT_JS.replace("__SETTINGS__", JSON.stringify(clientSettings));
-
-	// Only emit color overrides when the admin opted in. Otherwise leave the
-	// CSS variables unset so references inherit the host site's link styles.
-	const cssVars = resolved.useCustomColors
-		? `
-:root {
-	--midvash-link-color: ${resolved.linkColor};
-	--midvash-underline-color: ${resolved.underlineColor};
-	--midvash-underline-style: ${resolved.underlineStyle};
-	--midvash-underline-line: ${resolved.underlineLinks ? "underline" : "none"};
-}
-`
-		: "";
-
-	return { enabled: true, js, css: CLIENT_CSS + cssVars };
+	const { js, css } = buildClientAssets(resolved);
+	return { enabled: true, js, css };
 }

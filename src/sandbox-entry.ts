@@ -1,89 +1,60 @@
 /**
- * Bible by Midvash — runtime entry.
+ * Bible by Midvash — plugin backend (hooks + routes).
  *
- * Routes:
- *   GET /lookup?ref=...&v=...   public — resolve a single reference
- *   GET /versions?lang=...      public — list versions (cached daily)
- *   GET /client.js              public — DOM scanner + tooltip script
- *   GET /client.css             public — tooltip styles
- *   GET /settings               admin  — read all settings
- *   POST /settings              admin  — patch settings (used by admin UI)
+ * Hooks:
+ *   plugin:install     seed default settings into KV
+ *   page:fragments     inject the tooltip <style> + <script> into public pages
+ *                      (TRUSTED in-process only — EmDash never runs page:fragments
+ *                      for sandboxed plugins, so the tooltip feature requires a
+ *                      trusted install. Needs the hooks.page-fragments:register
+ *                      capability.)
+ *
+ * Routes (all JSON — EmDash wraps every plugin route reply as { data: ... }):
+ *   GET  /lookup?ref=&v=&lang=   public — resolve a single reference
+ *   GET  /versions?lang=         public — list versions (cached daily)
+ *   GET  /settings               admin  — read all settings
+ *   POST /settings/save          admin  — patch settings
+ *        admin                   admin  — Block Kit settings form
+ *        scan                    admin  — diagnostic: detect refs in text
  */
 
 import type { PluginContext, SandboxedPlugin } from "emdash/plugin";
 
-import { BOOKS, displayName, type Language } from "./lib/books.ts";
+import { displayName, type Language } from "./lib/books.ts";
 import { findReferences, parseReference } from "./lib/parser.ts";
 import { buildReadMoreUrl, fetchVerse, fetchVersions } from "./lib/midvash.ts";
-import { CLIENT_CSS, CLIENT_JS } from "./client/bundle.ts";
+import { buildClientAssets } from "./lib/client-assets.ts";
+import {
+	DEFAULTS,
+	type Settings,
+	buildAdminFields,
+	loadSettings as loadSettingsFromKv,
+} from "./lib/settings.ts";
 
-interface Settings {
-	enabled: boolean;
-	language: Language;
-	defaultVersion: string;
-	selectors: string;
-	theme: "auto" | "light" | "dark" | "sepia";
-	useCustomColors: boolean;
-	linkColor: string;
-	underlineLinks: boolean;
-	underlineColor: string;
-	underlineStyle: "solid" | "dashed" | "dotted" | "wavy";
-	showVersionBadge: boolean;
-	showReadMore: boolean;
-	cacheEnabled: boolean;
-	cacheTtlSeconds: number;
-	apiTimeoutMs: number;
-}
+const SETTINGS_PREFIX = "settings:";
 
-const DEFAULTS: Settings = {
-	enabled: true,
-	language: "pt-br",
-	defaultVersion: "naa",
-	selectors: "article\n.prose\n.post-content\nmain",
-	theme: "auto",
-	useCustomColors: false,
-	linkColor: "#B17027",
-	underlineLinks: false,
-	underlineColor: "#E8B45A",
-	underlineStyle: "solid",
-	showVersionBadge: true,
-	showReadMore: true,
-	cacheEnabled: true,
-	cacheTtlSeconds: 2_592_000,
-	apiTimeoutMs: 5000,
-};
-
+/**
+ * Read all settings from this plugin's KV store, falling back to DEFAULTS.
+ * Fast path: one `kv.list("settings:")` range read instead of ~15 point reads
+ * (this runs on every page render via page:fragments and on every route).
+ */
 async function loadSettings(ctx: PluginContext): Promise<Settings> {
-	const out = { ...DEFAULTS };
-	for (const key of Object.keys(DEFAULTS) as Array<keyof Settings>) {
-		const v = await ctx.kv.get<unknown>(`settings:${key}`);
-		if (v !== null && v !== undefined) (out as Record<string, unknown>)[key] = v;
+	if (typeof ctx.kv.list === "function") {
+		try {
+			const entries = await ctx.kv.list(SETTINGS_PREFIX);
+			const out: Settings = { ...DEFAULTS };
+			for (const { key, value } of entries) {
+				const k = key.slice(SETTINGS_PREFIX.length);
+				if (k in DEFAULTS && value !== null && value !== undefined) {
+					(out as unknown as Record<string, unknown>)[k] = value;
+				}
+			}
+			return out;
+		} catch {
+			// Fall through to per-key reads on any list() failure.
+		}
 	}
-	return out;
-}
-
-/** Build the regex pattern (as a string) that the client uses to scan the DOM. */
-function buildClientPattern(language: Language): { pattern: string; flags: string } {
-	const names = new Set<string>();
-	for (const book of BOOKS) {
-		// Include matching language + English (people often mix; Latin abbrev are universal).
-		for (const n of book.names[language]) names.add(n);
-		for (const n of book.names.en) names.add(n);
-	}
-	const sorted = [...names].sort((a, b) => b.length - a.length);
-	const escaped = sorted.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
-	const namePattern = escaped.join("|");
-	return {
-		pattern: `(?<![\\p{L}\\p{N}])(?:${namePattern})\\s*\\d{1,3}(?:\\s*[:.]\\s*\\d{1,3}(?:\\s*[-–—]\\s*\\d{1,3})?)?(?![\\p{L}])`,
-		flags: "giu",
-	};
-}
-
-function jsonResponse(body: unknown, status = 200): Response {
-	return new Response(JSON.stringify(body), {
-		status,
-		headers: { "Content-Type": "application/json; charset=utf-8" },
-	});
+	return loadSettingsFromKv((key) => ctx.kv.get(key));
 }
 
 async function renderSettingsBlocks(ctx: PluginContext): Promise<unknown[]> {
@@ -98,134 +69,7 @@ async function renderSettingsBlocks(ctx: PluginContext): Promise<unknown[]> {
 			type: "form",
 			block_id: "settings",
 			submit: { label: "Salvar", action_id: "save" },
-			fields: [
-				{
-					type: "toggle",
-					action_id: "enabled",
-					label: "Ativar detecção",
-					initial_value: s.enabled,
-				},
-				{
-					type: "select",
-					action_id: "language",
-					label: "Idioma",
-					initial_value: s.language,
-					options: [
-						{ value: "pt-br", label: "Português (Brasil)" },
-						{ value: "en", label: "English" },
-						{ value: "es", label: "Español" },
-					],
-				},
-				{
-					type: "select",
-					action_id: "defaultVersion",
-					label: "Versão padrão",
-					initial_value: s.defaultVersion,
-					options: [
-						{ value: "naa", label: "NAA — Nova Almeida Atualizada" },
-						{ value: "ara", label: "ARA — Almeida Revista e Atualizada" },
-						{ value: "arc", label: "ARC — Almeida Revista e Corrigida" },
-						{ value: "acf", label: "ACF — Almeida Corrigida Fiel" },
-						{ value: "nvi", label: "NVI — Nova Versão Internacional" },
-						{ value: "nvt", label: "NVT — Nova Versão Transformadora" },
-						{ value: "ntlh", label: "NTLH — Nova Tradução na Linguagem de Hoje" },
-						{ value: "kja", label: "KJA — King James Atualizada" },
-						{ value: "esv", label: "ESV — English Standard Version" },
-						{ value: "kjv", label: "KJV — King James Version" },
-						{ value: "niv", label: "NIV — New International Version" },
-						{ value: "rvr1960", label: "RVR1960 — Reina-Valera 1960" },
-					],
-				},
-				{
-					type: "text_input",
-					action_id: "selectors",
-					label: "Seletores CSS (um por linha)",
-					initial_value: s.selectors,
-					multiline: true,
-				},
-				{
-					type: "select",
-					action_id: "theme",
-					label: "Tema do tooltip",
-					initial_value: s.theme,
-					options: [
-						{ value: "auto", label: "Automático" },
-						{ value: "light", label: "Pergaminho (claro)" },
-						{ value: "dark", label: "Noite Quente (escuro)" },
-						{ value: "sepia", label: "Sépia" },
-					],
-				},
-				{
-					type: "toggle",
-					action_id: "useCustomColors",
-					label: "Usar cores customizadas",
-					initial_value: s.useCustomColors,
-				},
-				{
-					type: "text_input",
-					action_id: "linkColor",
-					label: "Cor do link (hex) — só ativa se 'Usar cores customizadas' estiver ligado",
-					initial_value: s.linkColor,
-				},
-				{
-					type: "toggle",
-					action_id: "underlineLinks",
-					label: "Sublinhar referências",
-					initial_value: s.underlineLinks,
-				},
-				{
-					type: "text_input",
-					action_id: "underlineColor",
-					label: "Cor do sublinhado",
-					initial_value: s.underlineColor,
-				},
-				{
-					type: "select",
-					action_id: "underlineStyle",
-					label: "Estilo do sublinhado",
-					initial_value: s.underlineStyle,
-					options: [
-						{ value: "solid", label: "Sólido" },
-						{ value: "dashed", label: "Tracejado" },
-						{ value: "dotted", label: "Pontilhado" },
-						{ value: "wavy", label: "Ondulado" },
-					],
-				},
-				{
-					type: "toggle",
-					action_id: "showVersionBadge",
-					label: "Mostrar badge da versão",
-					initial_value: s.showVersionBadge,
-				},
-				{
-					type: "toggle",
-					action_id: "showReadMore",
-					label: "Mostrar link 'Ler mais'",
-					initial_value: s.showReadMore,
-				},
-				{
-					type: "toggle",
-					action_id: "cacheEnabled",
-					label: "Cache de versículos",
-					initial_value: s.cacheEnabled,
-				},
-				{
-					type: "number_input",
-					action_id: "cacheTtlSeconds",
-					label: "Duração do cache (segundos)",
-					initial_value: s.cacheTtlSeconds,
-					min: 60,
-					max: 31_536_000,
-				},
-				{
-					type: "number_input",
-					action_id: "apiTimeoutMs",
-					label: "Timeout da API (ms)",
-					initial_value: s.apiTimeoutMs,
-					min: 500,
-					max: 30_000,
-				},
-			],
+			fields: buildAdminFields(s),
 		},
 		{ type: "divider" },
 		{
@@ -235,27 +79,42 @@ async function renderSettingsBlocks(ctx: PluginContext): Promise<unknown[]> {
 	];
 }
 
-function textResponse(body: string, contentType: string): Response {
-	return new Response(body, {
-		status: 200,
-		headers: {
-			"Content-Type": contentType,
-			"Cache-Control": "public, max-age=300",
-		},
-	});
-}
-
 export default {
 	hooks: {
 		"plugin:install": {
 			handler: async (_event: unknown, ctx: PluginContext) => {
 				ctx.log.info("Bible by Midvash installed — seeding defaults");
 				for (const [k, v] of Object.entries(DEFAULTS)) {
-					const existing = await ctx.kv.get(`settings:${k}`);
+					const existing = await ctx.kv.get(`${SETTINGS_PREFIX}${k}`);
 					if (existing === null || existing === undefined) {
-						await ctx.kv.set(`settings:${k}`, v);
+						await ctx.kv.set(`${SETTINGS_PREFIX}${k}`, v);
 					}
 				}
+			},
+		},
+
+		// Auto-inject the tooltip assets into every public page. EmDash splices
+		// these fragments into <head> / before </body> when the site layout uses
+		// its <EmDashHead> / <EmDashBodyEnd> components.
+		"page:fragments": {
+			handler: async (_event: unknown, ctx: PluginContext) => {
+				const settings = await loadSettings(ctx);
+				if (!settings.enabled) return [];
+				const { js, css } = buildClientAssets(settings);
+				return [
+					{
+						kind: "html" as const,
+						placement: "head" as const,
+						html: `<style>${css}</style>`,
+						key: "bible-by-midvash:css",
+					},
+					{
+						kind: "inline-script" as const,
+						placement: "body:end" as const,
+						code: js,
+						key: "bible-by-midvash:js",
+					},
+				];
 			},
 		},
 	},
@@ -266,16 +125,16 @@ export default {
 			handler: async (routeCtx: any, ctx: PluginContext) => {
 				const url = new URL(routeCtx.request.url);
 				const refRaw = url.searchParams.get("ref");
-				if (!refRaw) throw new Response("Missing ?ref", { status: 400 });
+				if (!refRaw) throw new Error("Missing ?ref");
 
 				const settings = await loadSettings(ctx);
 				const version = url.searchParams.get("v") || settings.defaultVersion;
 				const language = (url.searchParams.get("lang") as Language) || settings.language;
 
 				const parsed = parseReference(refRaw);
-				if (!parsed) throw new Response("Unrecognized reference", { status: 422 });
+				if (!parsed) throw new Error("Unrecognized reference");
 
-				if (!ctx.http) throw new Response("Network capability missing", { status: 500 });
+				if (!ctx.http) throw new Error("Network capability missing");
 
 				const verse = await fetchVerse(
 					parsed,
@@ -289,14 +148,11 @@ export default {
 					ctx.http,
 				);
 
-				if (!verse) {
-					throw new Response("Upstream lookup failed", { status: 502 });
-				}
+				if (!verse) throw new Error("Upstream lookup failed");
 
-				// Build the display reference in the requested language. We prefer
-				// the user's exact matched name (preserves their casing/accents),
-				// then fall back to the canonical name in `language`, then to
-				// the upstream English meta.reference as a last resort.
+				// Build the display reference in the requested language, preferring
+				// the author's exact matched name (preserves casing/accents), then
+				// the canonical name in `language`.
 				const versePart =
 					parsed.verse !== undefined
 						? `:${parsed.verse}${parsed.verseEnd && parsed.verseEnd !== parsed.verse ? `-${parsed.verseEnd}` : ""}`
@@ -320,45 +176,10 @@ export default {
 				const url = new URL(routeCtx.request.url);
 				const lang = url.searchParams.get("lang") || undefined;
 				const settings = await loadSettings(ctx);
-				if (!ctx.http) throw new Response("Network capability missing", { status: 500 });
+				if (!ctx.http) throw new Error("Network capability missing");
 				const data = await fetchVersions(lang, settings.apiTimeoutMs, ctx.kv, ctx.http);
-				if (!data) throw new Response("Upstream failed", { status: 502 });
+				if (!data) throw new Error("Upstream failed");
 				return data;
-			},
-		},
-
-		"client.js": {
-			public: true,
-			handler: async (_routeCtx: any, ctx: PluginContext) => {
-				const settings = await loadSettings(ctx);
-				const { pattern, flags } = buildClientPattern(settings.language);
-				const clientSettings = {
-					enabled: settings.enabled,
-					selectors: settings.selectors,
-					theme: settings.theme,
-					showVersionBadge: settings.showVersionBadge,
-					showReadMore: settings.showReadMore,
-					pattern,
-					patternFlags: flags,
-				};
-				const js = CLIENT_JS.replace("__SETTINGS__", JSON.stringify(clientSettings));
-				throw textResponse(js, "application/javascript; charset=utf-8");
-			},
-		},
-
-		"client.css": {
-			public: true,
-			handler: async (_routeCtx: any, ctx: PluginContext) => {
-				const settings = await loadSettings(ctx);
-				const overrides = `
-:root {
-	--midvash-link-color: ${settings.linkColor};
-	--midvash-underline-color: ${settings.underlineColor};
-	--midvash-underline-style: ${settings.underlineStyle};
-	--midvash-underline-line: ${settings.underlineLinks ? "underline" : "none"};
-}
-`;
-				throw textResponse(CLIENT_CSS + "\n" + overrides, "text/css; charset=utf-8");
 			},
 		},
 
@@ -369,15 +190,14 @@ export default {
 			},
 		},
 
-		// Admin: persist settings.
+		// Admin: persist settings. Sandboxed routes receive the parsed body as
+		// `input` — `request` is a serialized { url, method, headers } with no
+		// `.json()` method, so we never call it.
 		"settings/save": {
 			handler: async (routeCtx: any, ctx: PluginContext) => {
-				const body = (routeCtx.input ?? (await routeCtx.request.json())) as Record<
-					string,
-					unknown
-				>;
+				const body = (routeCtx.input ?? {}) as Record<string, unknown>;
 				for (const [k, v] of Object.entries(body)) {
-					if (v !== undefined) await ctx.kv.set(`settings:${k}`, v);
+					if (v !== undefined) await ctx.kv.set(`${SETTINGS_PREFIX}${k}`, v);
 				}
 				return { success: true };
 			},
@@ -396,7 +216,7 @@ export default {
 				if (interaction.type === "form_submit" && interaction.action_id === "save") {
 					const values = interaction.values ?? {};
 					for (const [k, v] of Object.entries(values)) {
-						if (v !== undefined) await ctx.kv.set(`settings:${k}`, v);
+						if (v !== undefined) await ctx.kv.set(`${SETTINGS_PREFIX}${k}`, v);
 					}
 					return {
 						blocks: await renderSettingsBlocks(ctx),
@@ -409,7 +229,6 @@ export default {
 		},
 
 		// Diagnostic: scan an arbitrary text and return all detected refs.
-		// Useful for debugging from the admin or testing the parser.
 		scan: {
 			public: false,
 			handler: async (routeCtx: any) => {

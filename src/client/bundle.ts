@@ -15,6 +15,15 @@ export const CLIENT_JS = String.raw`
 	var SETTINGS = __SETTINGS__;
 	if (!SETTINGS || SETTINGS.enabled === false) return;
 
+	// Localized UI strings, injected server-side from the content language.
+	// PT-BR fallback in case an older server build didn't provide them.
+	var STRINGS = SETTINGS.strings || {
+		loading: "Carregando…",
+		error: "Não foi possível carregar este versículo.",
+		readMore: "Ler mais ↗",
+		on: "no Midvash",
+	};
+
 	var API_PREFIX = "/_emdash/api/plugins/bible-by-midvash";
 	var PROCESSED = new WeakSet();
 	var SESSION_CACHE = new Map();
@@ -131,12 +140,12 @@ export const CLIENT_JS = String.raw`
 		var text = escapeHtml(payload.text || "");
 		var more = SETTINGS.showReadMore && payload.readMoreUrl
 			? '<a class="midvash-tooltip__link" href="' + escapeHtml(payload.readMoreUrl) +
-				'" target="_blank" rel="noopener">Ler mais ↗</a>'
+				'" target="_blank" rel="noopener">' + escapeHtml(STRINGS.readMore) + "</a>"
 			: "";
 		tip.innerHTML =
 			'<header class="midvash-tooltip__header">' +
 				'<span class="midvash-tooltip__ref">' + ref + " " +
-					'<span class="midvash-tooltip__on">on Midvash</span>' +
+					'<span class="midvash-tooltip__on">' + escapeHtml(STRINGS.on) + "</span>" +
 				"</span>" +
 				badge +
 			"</header>" +
@@ -150,7 +159,7 @@ export const CLIENT_JS = String.raw`
 				'<span class="midvash-tooltip__ref">' + escapeHtml(ref) + "</span>" +
 			"</header>" +
 			'<div class="midvash-tooltip__body midvash-tooltip__body--error">' +
-				"Não foi possível carregar este versículo." +
+				escapeHtml(STRINGS.error) +
 			"</div>";
 	}
 
@@ -159,7 +168,8 @@ export const CLIENT_JS = String.raw`
 			'<header class="midvash-tooltip__header">' +
 				'<span class="midvash-tooltip__ref">' + escapeHtml(ref) + "</span>" +
 			"</header>" +
-			'<div class="midvash-tooltip__body midvash-tooltip__body--loading">Carregando…</div>';
+			'<div class="midvash-tooltip__body midvash-tooltip__body--loading">' +
+				escapeHtml(STRINGS.loading) + "</div>";
 	}
 
 	function scheduleHide() {

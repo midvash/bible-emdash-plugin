@@ -27,23 +27,49 @@ export default defineConfig({
 });
 ```
 
-```astro
-<!-- src/layouts/Base.astro, dentro de <head> -->
-<link rel="stylesheet" href="/_emdash/api/plugins/bible-by-midvash/client.css" />
+Listo. El plugin auto-inyecta su script + estilos de tooltip en las páginas públicas mediante el hook `page:fragments` de EmDash — sin `<script>`/`<link>` que agregar — siempre que tu layout renderice los componentes `<EmDashHead />` y `<EmDashBodyEnd />` (la configuración estándar de EmDash).
 
-<!-- antes de </body> -->
-<script is:inline defer src="/_emdash/api/plugins/bible-by-midvash/client.js"></script>
+> **Modelo de instalación — trusted, no sandboxed.** Instálalo vía npm + `astro.config` (in-process), como [@jdevalk/emdash-plugin-seo](https://github.com/jdevalk/emdash-plugin-seo). Los tooltips al pasar el cursor necesitan JS/CSS del cliente, y EmDash solo permite que los plugins **trusted** inyecten scripts/estilos en las páginas. Una instalación *sandboxed* del Marketplace no puede inyectar scripts (por seguridad, a propósito) — solo expondría la API JSON `/lookup`, sin los tooltips. Para la función completa, usa instalación trusted.
+
+### Inyección manual (layouts sin los componentes de EmDash)
+
+Si tu layout no renderiza `<EmDashHead>` / `<EmDashBodyEnd>`, inyecta los snippets tú mismo:
+
+```astro
+---
+import { getBibleByMidvashSnippets } from "@midvash/emdash-plugin-bible/runtime";
+import { getPluginSetting } from "emdash";
+const { js, css, enabled } = await getBibleByMidvashSnippets(getPluginSetting);
+---
+{enabled && (
+  <>
+    <style is:inline set:html={css}></style>
+    <script is:inline set:html={js}></script>
+  </>
+)}
+```
+
+### Enlaces `<a>` reales para SEO (opcional)
+
+Agrega el middleware para envolver las referencias en anclas `<a href>` reales en el HTML SSR, para que los crawlers las indexen:
+
+```ts
+// src/middleware.ts
+import { sequence } from "astro:middleware";
+import { bibleLinkifier } from "@midvash/emdash-plugin-bible/middleware";
+
+export const onRequest = sequence(bibleLinkifier());
 ```
 
 ## Configuración
 
 Abre `/_emdash/admin/plugins/bible-by-midvash/settings` en el admin de EmDash. Ajustes principales:
 
-- **Idioma** — pt-BR / en / es (controla qué nombres de libros se reconocen)
-- **Versión por defecto** — NAA, ARA, NVI, ACF, ESV, KJV, RVR1960, y más
+- **Idioma** — pt-BR / en / es (controla qué nombres de libros se reconocen **y el idioma de la interfaz del tooltip**)
+- **Versión por defecto** — 37 traducciones en pt-BR / en / es (NAA, ARA, NVI, ACF, ESV, KJV, RVR1960, …), desde la [Midvash API](https://api.midvash.com/v1/versions) en vivo
 - **Selectores CSS** — dónde se detectan las referencias (por defecto: `article`, `.prose`, `.post-content`, `main`)
 - **Tema del tooltip** — auto / pergamino (claro) / noche cálida (oscuro) / sepia
-- **Colores y estilo** — color del enlace, subrayado
+- **Colores y estilo** — desactivado por defecto (las referencias heredan el estilo de enlace de tu sitio); activa **Usar colores personalizados** para sobrescribir
 - **Caché** — duración en segundos (por defecto: 30 días)
 
 ## Formatos soportados
@@ -66,16 +92,41 @@ Todas las rutas se sirven bajo `/_emdash/api/plugins/bible-by-midvash/`.
 
 | Ruta | Descripción |
 | --------------------- | ---------------------------------------- |
-| `GET /lookup?ref=...` | Resuelve una referencia (público) |
-| `GET /versions?lang=` | Lista las versiones disponibles (público) |
-| `GET /client.js` | Script de detección + tooltip (público) |
-| `GET /client.css` | Estilos del tooltip (público) |
+| `GET /lookup?ref=...` | Resuelve una referencia (público, JSON) |
+| `GET /versions?lang=` | Lista las versiones disponibles (público, JSON) |
 | `GET /settings` | Lee la configuración (admin) |
 | `POST /settings/save` | Guarda la configuración (admin) |
+
+El script + estilos del tooltip se entregan por el hook `page:fragments` (no por una ruta) — las rutas de plugin de EmDash siempre devuelven JSON, así que no pueden servir assets JS/CSS.
 
 ## Identidad visual
 
 El tooltip usa la paleta de [Midvash](https://midvash.com): Honey Deep (`#B17027`) para los enlaces, Pergamino (`#FBF5E8`) para el fondo claro, Noche Cálida (`#302A21`) para el fondo oscuro. Tipografía: Literata para el versículo, Figtree para la interfaz (con fallbacks `Georgia, serif` / `system-ui`).
+
+## Desarrollo
+
+```bash
+npm install
+npm run typecheck   # tsc --noEmit
+npm test            # vitest
+npm run check       # typecheck + tests
+npm run build       # compila src/ → dist/ (ESM + .d.ts) para npm
+```
+
+El código fuente está en `src/` (TypeScript); los tests y el typecheck se ejecutan directamente sobre él. `npm run build` (tsdown) genera el `dist/` publicado.
+
+## Bundle para el Marketplace
+
+El plugin también se empaqueta para el [Marketplace de EmDash](https://midvash.com) como un tarball sandbox:
+
+```bash
+npm run bundle:validate   # build + valida el manifest, sin tarball
+npm run bundle            # build + genera dist/<id>-<version>.tar.gz
+```
+
+`emdash plugin bundle` extrae un `manifest.json` (id, versión, capabilities, rutas, hooks, páginas de admin) del descriptor + backend, empaqueta `src/sandbox-entry.ts` en un único `backend.js` y verifica los límites de tamaño del marketplace. Publica con `emdash plugin publish`.
+
+> **Nota:** una instalación *sandboxed* del Marketplace solo ejecuta las rutas JSON (`/lookup`, `/versions`) y la página de admin — EmDash **no** ejecuta `page:fragments` para plugins sandboxed, así que los tooltips no se muestran. Para la función completa, instala como plugin **trusted** (npm + `astro.config`, ver [Instalación](#instalación)).
 
 ## Enlaces
 
