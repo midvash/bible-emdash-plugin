@@ -27,13 +27,74 @@ export default defineConfig({
 });
 ```
 
-```astro
-<!-- src/layouts/Base.astro, inside <head> -->
-<link rel="stylesheet" href="/_emdash/api/plugins/bible-by-midvash/client.css" />
+That's it. Registered under `plugins: []`, the plugin injects its tooltip CSS/JS
+into every page automatically through EmDash's `page:fragments` hook — **no layout
+edits needed**.
 
-<!-- before </body> -->
-<script is:inline defer src="/_emdash/api/plugins/bible-by-midvash/client.js"></script>
+### Manual injection (optional)
+
+If you'd rather place the assets yourself, inline them from the runtime helper in
+your base layout instead:
+
+```astro
+---
+// src/layouts/Base.astro
+import { getBibleByMidvashSnippets } from "@midvash/emdash-plugin-bible/runtime";
+import { getPluginSetting, getPluginSettings } from "emdash";
+
+// Passing getPluginSettings too reads all keys in a single call instead of one
+// per setting. The compiled JS/CSS is memoized, so this is cheap per request.
+const { js, css, enabled } = await getBibleByMidvashSnippets(getPluginSetting, getPluginSettings);
+---
+{enabled && (
+  <>
+    <style is:inline set:html={css}></style>
+    <script is:inline set:html={js}></script>
+  </>
+)}
 ```
+
+> ⚠️ **Don't** load the assets via `…/client.js` or `…/client.css`. EmDash 0.16+
+> JSON-wraps every plugin-route response, so a route can't serve a raw JS/CSS
+> body — those routes returned 500 and have been removed. Use the auto-injection
+> or the runtime helper above.
+
+### SSR linkification for SEO (optional, advanced)
+
+References are linkified on the client by default. For SEO you can *also* wrap them
+server-side, so the HTML shipped to crawlers contains real
+`<a class="midvash-ref" href="https://midvash.com/…">` anchors. Add the middleware:
+
+```ts
+// src/middleware.ts
+import { sequence } from "astro:middleware";
+import { bibleLinkifier } from "@midvash/emdash-plugin-bible/middleware";
+
+export const onRequest = sequence(bibleLinkifier());
+```
+
+**Trade-off:** the middleware reads and rewrites the entire HTML body of every page
+(`response.text()` → transform → new `Response`) — real CPU/latency on a Worker. The
+client script detects these SSR anchors and only attaches hover listeners (it never
+double-wraps). Reach for it when SEO link equity matters more than the per-request
+cost.
+
+## Registration: `plugins:` vs `sandboxed:`
+
+The descriptor is standard-format (`format: "standard"`, `entrypoint`,
+`capabilities`, `allowedHosts`) and can be registered two ways:
+
+- **`plugins: [biblePlugin()]` — in-process (recommended).** EmDash adapts the
+  standard entry in-process and runs it through the HookPipeline. Capability gating
+  is `ctx.*`-based (advisory — an in-process plugin can bypass it). **Required for
+  the `page:fragments` auto-injection**, since sandboxed plugins can't contribute
+  page fragments.
+- **`sandboxed: [biblePlugin()]` + a `sandboxRunner` — isolated.** Runs in the
+  isolated runtime where `network:fetch` and `allowedHosts: ["api.midvash.com"]` are
+  actually enforced — appropriate if you want hard capability isolation around the
+  external API call. Requires a sandbox runner (e.g. Cloudflare `worker_loaders` +
+  `sandboxRunner: sandbox()`). In this mode the auto-injection won't run, so use the
+  manual runtime-helper injection above.
 
 ## Configuration
 
@@ -66,12 +127,12 @@ All routes are served under `/_emdash/api/plugins/bible-by-midvash/`.
 
 | Route | Description |
 | --------------------- | -------------------------------------- |
-| `GET /lookup?ref=...` | Resolve a reference (public) |
-| `GET /versions?lang=` | List available versions (public) |
-| `GET /client.js` | Detection + tooltip script (public) |
-| `GET /client.css` | Tooltip styles (public) |
+| `GET /lookup?ref=...` | Resolve a reference (public) — `{ data: { reference, text, … } }` |
+| `GET /versions?lang=` | List available versions (public) — `{ data: [ … ] }` |
 | `GET /settings` | Read settings (admin) |
 | `POST /settings/save` | Persist settings (admin) |
+
+> Client assets aren't served from a route — see [Installation](#installation). EmDash 0.16+ JSON-wraps every route response, so a route can't return a raw JS/CSS body.
 
 ## Visual identity
 

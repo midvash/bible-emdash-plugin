@@ -27,13 +27,75 @@ export default defineConfig({
 });
 ```
 
-```astro
-<!-- src/layouts/Base.astro, dentro de <head> -->
-<link rel="stylesheet" href="/_emdash/api/plugins/bible-by-midvash/client.css" />
+Listo. Registrado en `plugins: []`, el plugin inyecta su CSS/JS de tooltip en cada
+página automáticamente mediante el hook `page:fragments` de EmDash — **sin editar el
+layout**.
 
-<!-- antes de </body> -->
-<script is:inline defer src="/_emdash/api/plugins/bible-by-midvash/client.js"></script>
+### Inyección manual (opcional)
+
+Si prefieres colocar los assets tú mismo, hazles inline desde el helper de runtime en
+tu layout base:
+
+```astro
+---
+// src/layouts/Base.astro
+import { getBibleByMidvashSnippets } from "@midvash/emdash-plugin-bible/runtime";
+import { getPluginSetting, getPluginSettings } from "emdash";
+
+// Pasar getPluginSettings lee todas las claves en una sola llamada en lugar de una
+// por ajuste. El JS/CSS compilado se memoiza, así que es barato por request.
+const { js, css, enabled } = await getBibleByMidvashSnippets(getPluginSetting, getPluginSettings);
+---
+{enabled && (
+  <>
+    <style is:inline set:html={css}></style>
+    <script is:inline set:html={js}></script>
+  </>
+)}
 ```
+
+> ⚠️ **No** cargues los assets vía `…/client.js` ni `…/client.css`. EmDash 0.16+
+> envuelve toda respuesta de ruta en JSON, así que una ruta no puede servir un cuerpo
+> de JS/CSS en crudo — esas rutas devolvían 500 y fueron eliminadas. Usa la
+> auto-inyección o el helper de runtime de arriba.
+
+### Linkificación en SSR para SEO (opcional, avanzado)
+
+Las referencias se linkifican en el cliente por defecto. Para SEO puedes *además*
+envolverlas en el servidor, de modo que el HTML que reciben los crawlers contenga
+anclas reales `<a class="midvash-ref" href="https://midvash.com/…">`. Añade el
+middleware:
+
+```ts
+// src/middleware.ts
+import { sequence } from "astro:middleware";
+import { bibleLinkifier } from "@midvash/emdash-plugin-bible/middleware";
+
+export const onRequest = sequence(bibleLinkifier());
+```
+
+**Compensación:** el middleware lee y reescribe todo el HTML de cada página
+(`response.text()` → transforma → nuevo `Response`) — coste real de CPU/latencia en un
+Worker. El script del cliente detecta esas anclas de SSR y solo adjunta los listeners
+de hover (nunca duplica). Úsalo cuando el link equity de SEO importe más que el coste
+por request.
+
+## Registro: `plugins:` vs `sandboxed:`
+
+El descriptor es de formato estándar (`format: "standard"`, `entrypoint`,
+`capabilities`, `allowedHosts`) y puede registrarse de dos maneras:
+
+- **`plugins: [biblePlugin()]` — in-process (recomendado).** EmDash adapta la entrada
+  estándar in-process y la ejecuta por el HookPipeline. El control de capabilities es
+  vía `ctx.*` (consultivo — un plugin in-process puede saltárselo). **Necesario para la
+  auto-inyección vía `page:fragments`**, ya que los plugins sandboxed no aportan
+  fragments.
+- **`sandboxed: [biblePlugin()]` + un `sandboxRunner` — aislado.** Se ejecuta en el
+  runtime aislado donde `network:fetch` y `allowedHosts: ["api.midvash.com"]` sí se
+  aplican — apropiado si quieres aislamiento fuerte de capabilities en la llamada a la
+  API externa. Requiere un sandbox runner (p. ej. `worker_loaders` de Cloudflare +
+  `sandboxRunner: sandbox()`). En este modo la auto-inyección no se ejecuta; usa la
+  inyección manual con el helper de runtime de arriba.
 
 ## Configuración
 
@@ -66,12 +128,12 @@ Todas las rutas se sirven bajo `/_emdash/api/plugins/bible-by-midvash/`.
 
 | Ruta | Descripción |
 | --------------------- | ---------------------------------------- |
-| `GET /lookup?ref=...` | Resuelve una referencia (público) |
-| `GET /versions?lang=` | Lista las versiones disponibles (público) |
-| `GET /client.js` | Script de detección + tooltip (público) |
-| `GET /client.css` | Estilos del tooltip (público) |
+| `GET /lookup?ref=...` | Resuelve una referencia (público) — `{ data: { reference, text, … } }` |
+| `GET /versions?lang=` | Lista las versiones disponibles (público) — `{ data: [ … ] }` |
 | `GET /settings` | Lee la configuración (admin) |
 | `POST /settings/save` | Guarda la configuración (admin) |
+
+> Los assets del cliente no se sirven desde una ruta — mira [Instalación](#instalación). EmDash 0.16+ envuelve toda respuesta de ruta en JSON, así que una ruta no devuelve un cuerpo de JS/CSS en crudo.
 
 ## Identidad visual
 
