@@ -4,7 +4,7 @@
 
 Detecta automáticamente referencias bíblicas en el contenido de tu sitio EmDash y muestra tooltips con el versículo al pasar el cursor. El texto proviene de la [Midvash API](https://api.midvash.com) — pública, sin autenticación.
 
-Hecho por [Midvash](https://midvash.com). ¿Usas WordPress? Mira el plugin hermano: [midvash/bible-by-midvash](https://github.com/midvash/bible-by-midvash).
+Hecho por [Midvash](https://midvash.com). ¿Usas WordPress? Mira el plugin hermano: [midvash/bible-wordpress-plugin](https://github.com/midvash/bible-wordpress-plugin).
 
 ## Instalación
 
@@ -122,7 +122,7 @@ el bug de "tap lleva al usuario fuera de la página".
 Abre `/_emdash/admin/plugins/bible-by-midvash/settings` en el admin de EmDash. Ajustes principales:
 
 - **Idioma** — pt-BR / en / es (controla qué nombres de libros se reconocen **y el idioma de la interfaz del tooltip**)
-- **Versión por defecto** — 37 traducciones en pt-BR / en / es (NAA, ARA, NVI, ACF, ESV, KJV, RVR1960, …), desde la [Midvash API](https://api.midvash.com/v1/versions) en vivo
+- **Versión por defecto** — 38 traducciones en pt-BR / en / es (NAA, ARA, NVI, ACF, ESV, KJV, RVR1960, …), desde la [Midvash API](https://api.midvash.com/v1/versions) en vivo
 - **Selectores CSS** — dónde se detectan las referencias (por defecto: `article`, `.prose`, `.post-content`, `main`)
 - **Tema del tooltip** — auto / pergamino (claro) / noche cálida (oscuro) / sepia
 - **Colores y estilo** — desactivado por defecto (las referencias heredan el estilo de enlace de tu sitio); activa **Usar colores personalizados** para sobrescribir
@@ -188,8 +188,9 @@ npm run bundle            # build + genera dist/<id>-<version>.tar.gz
 
 - 🌐 [midvash.com](https://midvash.com) — el proyecto detrás de los datos
 - 📖 [Midvash API](https://api.midvash.com) — API bíblica pública (sin auth)
-- 🧩 [Versión WordPress](https://github.com/midvash/bible-by-midvash) — la misma función en WordPress
+- 🧩 [Versión WordPress](https://github.com/midvash/bible-wordpress-plugin) — la misma función en WordPress
 
 ## Licencia
 
 [MIT](./LICENSE) © [Midvash](https://midvash.com)
+
