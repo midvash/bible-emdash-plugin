@@ -15,7 +15,8 @@ description: >-
 
 EmDash is an Astro-native CMS. A plugin is an npm package the host imports in `astro.config`
 (trusted) and/or publishes to the marketplace (sandboxed). Platform facts below were verified
-against **emdash v0.16.1**; a different installed version → re-check `node_modules/emdash/src/plugins/*`.
+against **emdash v0.16.1** and re-checked against **v0.30.0** (see §8 for what 0.30 added);
+a different installed version → re-check `node_modules/emdash/src/plugins/*`.
 
 > **This repo is a worked example (v0.2.0):** a trusted plugin that declares
 > `["network:request", "hooks.page-fragments:register"]`, ships its tooltip JS/CSS through the
@@ -120,6 +121,33 @@ The public route handler returns `apiSuccess(result.data)` — a JSON envelope
    backend from §5).
 5. **`emdash plugin publish`** — hard-fails on any deprecated capability. (This repo automates
    release via Changesets — don't bump versions by hand; see `AGENTS.md`.)
+
+## 8. What EmDash 0.30 added (verified by 0.16.1 → 0.30.0 source diff; this repo adopted all of it in v0.5.0)
+
+- **Descriptor `settingsSchema`** (`Record<string, SettingField>`): the admin auto-generates a
+  settings form and persists values in the options table under `plugin:{id}:settings:{key}` —
+  the SAME keys the plugin reads via `ctx.kv.get("settings:{key}")`, so KV-based loading keeps
+  working unchanged. §5's old claim "standard format has no top-level settingsSchema field" is
+  now false. Descriptor also gained `portableTextBlocks` (trusted-only, bundle hard-fails on it)
+  and `fieldWidgets`.
+- **Route `permission` + `cacheControl`**: `permission` must be a key of `Permissions` from
+  `@emdash-cms/auth` (e.g. `"plugins:manage"`; legacy routes default to it). `cacheControl` is
+  honored **only on `public: true` routes** — authenticated responses stay `private, no-store`;
+  errors never cached.
+- **MCP tools**: `mcp: { tools: { name: { description, route, input: z.ZodType, output?,
+  destructive } } }` in the sandbox-entry default export. Tool name `/^[a-zA-Z0-9_-]+$/`; the
+  referenced route must be **non-public and carry a `permission`** (definePlugin throws / bundle
+  CLI hard-fails otherwise). Input/output are **zod v4** schemas (`z.toJSONSchema` at bundle).
+- **`declaredAccess`**: the manifest's structured trust contract, authoritative over
+  `capabilities`/`allowedHosts` when present — but the bundle CLI **derives it automatically**
+  from capabilities (`capabilitiesToDeclaredAccess`), so descriptors keep declaring capabilities.
+- New capability `taxonomies:read`; new hooks `content:afterRestore|afterSchedule|afterUnschedule`
+  (all require `content:read`). `page:fragments` contract unchanged (still trusted-only).
+- CLI: `emdash plugin validate` is now a thin wrapper for `bundle --validateOnly`. Gotcha: the
+  standard-format probe copies route `public`/`cacheControl` but **not `permission`, `mcp` or
+  descriptor `settingsSchema` into the marketplace manifest** — those flow only through the
+  trusted path (`adaptSandboxEntry`). All 0.30 fields are ignored by older hosts, so a plugin
+  can adopt them while keeping `peerDependencies: emdash >=0.16`.
 
 ## Source of truth
 
