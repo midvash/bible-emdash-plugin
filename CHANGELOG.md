@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.0
+
+### Minor Changes
+
+- [#65](https://github.com/midvash/bible-emdash-plugin/pull/65) [`9a8928d`](https://github.com/midvash/bible-emdash-plugin/commit/9a8928d020b2058f6049982aa8943ef9ae574cf0) Thanks [@onetogregorio](https://github.com/onetogregorio)! - EmDash 0.30 support: auto-generated admin settings form (descriptor `settingsSchema`), HTTP caching on the public `lookup`/`versions` routes (`cacheControl`), an explicit `plugins:manage` permission on the `scan` route, and `scan` exposed as an agent-callable MCP tool. Fully backward compatible — older EmDash hosts ignore the new fields.
+
 ## 0.4.0
 
 ### Minor Changes
