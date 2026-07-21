@@ -17,10 +17,10 @@
 	"homepage": "https://midvash.com",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/midvash/emdash-plugin-bible.git"
+		"url": "git+https://github.com/midvash/bible-emdash-plugin.git"
 	},
 	"bugs": {
-		"url": "https://github.com/midvash/emdash-plugin-bible/issues"
+		"url": "https://github.com/midvash/bible-emdash-plugin/issues"
 	},
 	"main": "./dist/index.js",
 	"exports": {
