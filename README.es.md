@@ -119,7 +119,10 @@ el bug de "tap lleva al usuario fuera de la página".
 
 ## Configuración
 
-Abre `/_emdash/admin/plugins/bible-by-midvash/settings` en el admin de EmDash. Ajustes principales:
+Abre `/_emdash/admin/plugins/bible-by-midvash/settings` en el admin de EmDash. En
+EmDash **0.30+** el plugin también declara un `settingsSchema`, así que el admin
+muestra un formulario **Configure** auto-generado — ambas UIs leen y escriben la
+misma configuración, usa la que prefieras. Ajustes principales:
 
 - **Idioma** — pt-BR / en / es (controla qué nombres de libros se reconocen **y el idioma de la interfaz del tooltip**)
 - **Versión por defecto** — 38 traducciones en pt-BR / en / es (NAA, ARA, NVI, ACF, ESV, KJV, RVR1960, …), desde la [Midvash API](https://api.midvash.com/v1/versions) en vivo
@@ -148,12 +151,17 @@ Todas las rutas se sirven bajo `/_emdash/api/plugins/bible-by-midvash/`.
 
 | Ruta | Descripción |
 | --------------------- | ---------------------------------------- |
-| `GET /lookup?ref=...` | Resuelve una referencia (público, JSON) |
-| `GET /versions?lang=` | Lista las versiones disponibles (público, JSON) |
+| `GET /lookup?ref=...` | Resuelve una referencia (público, JSON, caché de 5 min en EmDash 0.30+) |
+| `GET /versions?lang=` | Lista las versiones disponibles (público, JSON, caché de 1 h en EmDash 0.30+) |
 | `GET /settings` | Lee la configuración (admin) |
 | `POST /settings/save` | Guarda la configuración (admin) |
+| `POST /scan` | Detecta referencias en un texto (admin, `plugins:manage`) |
 
 El script + estilos del tooltip se entregan por el hook `page:fragments` (no por una ruta) — las rutas de plugin de EmDash siempre devuelven JSON, así que no pueden servir assets JS/CSS.
+
+En EmDash **0.30+** la ruta `scan` también se expone como **tool MCP**: un agente
+de IA conectado al admin puede detectar referencias bíblicas en cualquier texto a
+través del endpoint MCP del CMS.
 
 ## Identidad visual
 

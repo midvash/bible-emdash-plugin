@@ -115,7 +115,10 @@ This preserves the SEO link (Googlebot still follows it) while fixing the
 
 ## Configuration
 
-Open `/_emdash/admin/plugins/bible-by-midvash/settings` in the EmDash admin. Key settings:
+Open `/_emdash/admin/plugins/bible-by-midvash/settings` in the EmDash admin. On
+EmDash **0.30+** the plugin also declares a `settingsSchema`, so the admin shows
+an auto-generated **Configure** form as well — both UIs read and write the same
+stored settings, so use whichever you prefer. Key settings:
 
 - **Language** — pt-BR / en / es (controls which book names are recognized **and the tooltip UI language**)
 - **Default version** — 38 translations across pt-BR / en / es (NAA, ARA, NVI, ACF, ESV, KJV, RVR1960, …), sourced from the live [Midvash API](https://api.midvash.com/v1/versions)
@@ -144,12 +147,17 @@ All routes are served under `/_emdash/api/plugins/bible-by-midvash/`.
 
 | Route | Description |
 | --------------------- | -------------------------------------- |
-| `GET /lookup?ref=...` | Resolve a reference (public, JSON) |
-| `GET /versions?lang=` | List available versions (public, JSON) |
+| `GET /lookup?ref=...` | Resolve a reference (public, JSON, cached 5 min on EmDash 0.30+) |
+| `GET /versions?lang=` | List available versions (public, JSON, cached 1 h on EmDash 0.30+) |
 | `GET /settings` | Read settings (admin) |
 | `POST /settings/save` | Persist settings (admin) |
+| `POST /scan` | Detect references in a text (admin, `plugins:manage`) |
 
 The tooltip script + styles are delivered by the `page:fragments` hook (not a route) — EmDash plugin routes always return JSON, so they can't serve JS/CSS assets.
+
+On EmDash **0.30+** the `scan` route is also exposed as an **MCP tool**, so an
+admin-connected AI agent can detect Bible references in arbitrary text through
+the CMS's MCP endpoint.
 
 ## Visual identity
 

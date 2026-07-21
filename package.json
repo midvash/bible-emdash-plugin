@@ -54,7 +54,7 @@
 		"test:watch": "vitest",
 		"coverage": "vitest run --coverage",
 		"check": "npm run typecheck && npm run coverage",
-		"build": "tsdown src/index.ts src/sandbox-entry.ts src/runtime.ts src/middleware.ts --format esm --dts --clean --platform neutral --external emdash --external emdash/plugin --external astro",
+		"build": "tsdown src/index.ts src/sandbox-entry.ts src/runtime.ts src/middleware.ts --format esm --dts --clean --platform neutral --external emdash --external emdash/plugin --external astro --external zod",
 		"bundle": "npm run build && emdash plugin bundle",
 		"bundle:validate": "npm run build && emdash plugin validate",
 		"changeset": "changeset",
@@ -66,17 +66,19 @@
 		"node": ">=18"
 	},
 	"peerDependencies": {
-		"emdash": ">=0.16.1"
+		"emdash": ">=0.16.1",
+		"zod": "^4.0.0"
 	},
 	"devDependencies": {
 		"@changesets/changelog-github": "^0.7.0",
 		"@changesets/cli": "^2.31.0",
 		"@vitest/coverage-v8": "^4.1.8",
 		"astro": "^6.0.0",
-		"emdash": "^0.17.0",
+		"emdash": "^0.30.0",
 		"happy-dom": "^20.10.1",
 		"tsdown": "^0.22.1",
 		"typescript": "^6.0.3",
-		"vitest": "^4.1.8"
+		"vitest": "^4.1.8",
+		"zod": "^4.4.3"
 	}
 }

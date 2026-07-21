@@ -12,6 +12,8 @@
 
 import type { PluginDescriptor } from "emdash";
 
+import { buildSettingsSchemaFields } from "./lib/settings.ts";
+
 export interface BiblePluginOptions {
 	/**
 	 * Override the plugin id. Useful only when running multiple instances
@@ -36,14 +38,22 @@ export function biblePlugin(options: BiblePluginOptions = {}): PluginDescriptor 
 
 		// Admin page rendered by the `admin` route via Block Kit.
 		adminPages: [{ path: "/settings", label: "Bible by Midvash", icon: "book" }],
+
+		// EmDash ≥0.30 renders an auto-generated settings form from this schema
+		// and persists values under `plugin:{id}:settings:{key}` — the exact keys
+		// the backend reads via `ctx.kv.get("settings:{key}")`, so both settings
+		// UIs (this and the Block Kit admin page above, kept for hosts <0.30)
+		// write to the same store. Older hosts ignore the field.
+		// Cast via unknown: lib/settings.ts deliberately never imports emdash
+		// types, so its return type is structural, not the SettingField union.
+		settingsSchema: buildSettingsSchemaFields() as unknown as PluginDescriptor["settingsSchema"],
 	};
 }
 
 /**
  * Settings schema metadata — re-exported from the single source of truth in
- * `lib/settings.ts`. Used by the Block Kit admin route at runtime and intended
- * for marketplace bundling (manifest.json `admin.settingsSchema`). Not part of
- * PluginDescriptor (standard format has no top-level settingsSchema field).
+ * `lib/settings.ts`. Used by the Block Kit admin route at runtime and by the
+ * descriptor's `settingsSchema` above (EmDash ≥0.30 auto settings form).
  */
 export { SETTINGS_SCHEMA, DEFAULTS, type Settings } from "./lib/settings.ts";
 

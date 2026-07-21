@@ -304,6 +304,27 @@ export async function loadSettings(
 }
 
 /**
+ * Derive the descriptor's `settingsSchema` (EmDash ≥0.30) from
+ * `SETTINGS_SCHEMA`. EmDash renders an auto-generated settings form from this
+ * and persists values under `plugin:{id}:settings:{key}` — the same keys
+ * `loadSettings` already reads — so the auto form, the Block Kit admin page
+ * and the runtime can never disagree. Returns fresh mutable objects because
+ * emdash's `SettingField` type takes mutable `options` arrays, while
+ * `SETTINGS_SCHEMA` is `as const`.
+ */
+export function buildSettingsSchemaFields(): Record<string, Record<string, unknown>> {
+	return Object.fromEntries(
+		Object.entries(SETTINGS_SCHEMA).map(([key, def]) => [
+			key,
+			{
+				...def,
+				...("options" in def ? { options: def.options.map((o) => ({ ...o })) } : {}),
+			},
+		]),
+	);
+}
+
+/**
  * Derive the Block Kit form fields for the admin page from `SETTINGS_SCHEMA`,
  * pre-filled with the current values. Keeping this derived means the form,
  * the defaults, and the marketplace schema can never list different fields.
