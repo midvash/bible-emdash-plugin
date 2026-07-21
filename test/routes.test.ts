@@ -231,3 +231,73 @@ describe("scan route", () => {
 		expect(out.matches).toEqual([]);
 	});
 });
+
+describe("route metadata (EmDash ≥0.30 practices)", () => {
+	const meta = def.routes as Record<
+		string,
+		{ public?: boolean; permission?: string; cacheControl?: string }
+	>;
+
+	it("declares Cache-Control on the public routes", () => {
+		// New in EmDash 0.30: `cacheControl` sets the Cache-Control header on
+		// successful GET responses — honored only on `public: true` routes.
+		expect(meta.lookup.public).toBe(true);
+		expect(meta.lookup.cacheControl).toMatch(/^public, max-age=\d+/);
+		expect(meta.versions.public).toBe(true);
+		expect(meta.versions.cacheControl).toMatch(/^public, max-age=\d+/);
+	});
+
+	it("keeps the lookup TTL short (client omits ?v/&lang, so settings changes must propagate)", () => {
+		const maxAge = Number(/max-age=(\d+)/.exec(meta.lookup.cacheControl!)?.[1]);
+		expect(maxAge).toBeLessThanOrEqual(300);
+	});
+
+	it("never sets cacheControl on authenticated routes (only honored on public)", () => {
+		for (const [name, route] of Object.entries(meta)) {
+			if (!route.public) expect(route.cacheControl, `route ${name}`).toBeUndefined();
+		}
+	});
+
+	it("declares an explicit RBAC permission on the scan route (required for MCP)", () => {
+		expect(meta.scan.public).toBe(false);
+		expect(meta.scan.permission).toBe("plugins:manage");
+	});
+});
+
+describe("MCP tools (EmDash ≥0.30 agent-callable routes)", () => {
+	const mcp = def.mcp as {
+		tools: Record<
+			string,
+			{
+				description: string;
+				route: string;
+				destructive?: boolean;
+				input: { safeParse: (v: unknown) => { success: boolean } };
+			}
+		>;
+	};
+
+	it("exposes the scan route as a non-destructive MCP tool", () => {
+		const tool = mcp.tools.scan;
+		expect(tool).toBeDefined();
+		expect(tool.route).toBe("scan");
+		expect(tool.destructive).toBe(false);
+		expect(tool.description.length).toBeGreaterThan(10);
+	});
+
+	it("validates tool input with a zod schema requiring text", () => {
+		const tool = mcp.tools.scan;
+		expect(tool.input.safeParse({ text: "João 3:16" }).success).toBe(true);
+		expect(tool.input.safeParse({}).success).toBe(false);
+	});
+
+	it("only references private permissioned routes (bundle CLI hard-fails otherwise)", () => {
+		const routeMeta = def.routes as Record<string, { public?: boolean; permission?: string }>;
+		for (const [name, tool] of Object.entries(mcp.tools)) {
+			const target = routeMeta[tool.route];
+			expect(target, `tool ${name} route`).toBeDefined();
+			expect(target.public ?? false, `tool ${name} must not use a public route`).toBe(false);
+			expect(target.permission, `tool ${name} route needs a permission`).toBeTruthy();
+		}
+	});
+});

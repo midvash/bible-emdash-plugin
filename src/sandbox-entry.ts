@@ -10,13 +10,16 @@
  *                      capability.)
  *
  * Routes (all JSON — EmDash wraps every plugin route reply as { data: ... }):
- *   GET  /lookup?ref=&v=&lang=   public — resolve a single reference
- *   GET  /versions?lang=         public — list versions (cached daily)
+ *   GET  /lookup?ref=&v=&lang=   public — resolve a single reference (cached 5 min)
+ *   GET  /versions?lang=         public — list versions (cached 1 h)
  *   GET  /settings               admin  — read all settings
  *   POST /settings/save          admin  — patch settings
  *        admin                   admin  — Block Kit settings form
  *        scan                    admin  — diagnostic: detect refs in text
+ *                                         (plugins:manage; also an MCP tool)
  */
+
+import { z } from "zod";
 
 import type { PluginContext, SandboxedPlugin } from "emdash/plugin";
 
@@ -124,6 +127,12 @@ export default {
 	routes: {
 		lookup: {
 			public: true,
+			// EmDash ≥0.30 sets this Cache-Control on successful GET responses
+			// (public routes only). Short TTL on purpose: the client tooltip
+			// omits ?v=/&lang, so a defaultVersion/language change in the admin
+			// must reach visitors within minutes. Verse text itself never
+			// changes — stale-while-revalidate keeps repeat hovers instant.
+			cacheControl: "public, max-age=300, stale-while-revalidate=3600",
 			handler: async (routeCtx: any, ctx: PluginContext) => {
 				const url = new URL(routeCtx.request.url);
 				const refRaw = url.searchParams.get("ref");
@@ -184,6 +193,9 @@ export default {
 
 		versions: {
 			public: true,
+			// The upstream version list changes rarely (already KV-cached daily
+			// server-side); let browsers/CDNs hold it for an hour.
+			cacheControl: "public, max-age=3600, stale-while-revalidate=86400",
 			handler: async (routeCtx: any, ctx: PluginContext) => {
 				const url = new URL(routeCtx.request.url);
 				const lang = url.searchParams.get("lang") || undefined;
@@ -245,13 +257,45 @@ export default {
 		},
 
 		// Diagnostic: scan an arbitrary text and return all detected refs.
+		// Explicit RBAC permission (EmDash ≥0.30) — also required for the MCP
+		// tool below: the bundle CLI hard-fails on tools referencing a route
+		// that is public or permissionless.
 		scan: {
 			public: false,
+			permission: "plugins:manage",
 			handler: async (routeCtx: any) => {
 				const text = (routeCtx.input?.text ?? "") as string;
 				const matches = [];
 				for (const m of findReferences(text)) matches.push(m);
 				return { matches };
+			},
+		},
+	},
+
+	// EmDash ≥0.30: routes exposed as agent-callable MCP tools. Lets an admin
+	// agent (Claude, etc.) detect Bible references in arbitrary text through
+	// the CMS's MCP endpoint. Older hosts ignore this block.
+	mcp: {
+		tools: {
+			scan: {
+				description:
+					"Detect Bible references (PT-BR, EN, ES) in a text. Returns each match with its canonical book slug, chapter and verse range — the same parser the tooltip plugin uses on rendered pages.",
+				route: "scan",
+				destructive: false,
+				input: z.object({
+					text: z.string().min(1).describe("The text to scan for Bible references"),
+				}),
+				output: z.object({
+					matches: z.array(
+						z.object({
+							slug: z.string(),
+							chapter: z.number(),
+							verse: z.number().optional(),
+							verseEnd: z.number().optional(),
+							matchedName: z.string().optional(),
+						}),
+					),
+				}),
 			},
 		},
 	},
