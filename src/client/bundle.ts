@@ -243,6 +243,10 @@ export const CLIENT_JS = String.raw`
 				: "";
 		var ref = escapeHtml(payload.reference || "");
 		var text = escapeHtml(payload.text || "");
+		// Whole-chapter previews are truncated at a verse boundary by the API;
+		// append an ellipsis so the reader knows there's more (the read-more
+		// link carries them to the full chapter).
+		if (payload.truncated && text) text += " …";
 		// #42: only render the read-more link when readMoreUrl is http(s).
 		var safeMore = SETTINGS.showReadMore ? safeHttpUrl(payload.readMoreUrl) : null;
 		var more = safeMore
@@ -334,6 +338,13 @@ export const CLIENT_JS = String.raw`
 	// route), so we map them back to the exact data-ref keys hover uses. Capped
 	// at the API's 50-ref batch limit; deduped. Best-effort — any failure just
 	// leaves hover to fetch per-ref as before.
+	//
+	// Whole-chapter refs ("Salmos 23" — no verse) are skipped: the batch
+	// endpoint returns their full text (a chapter can be ~13 KB), while a hover
+	// fetches them via /lookup with ?preview to stay small. Batching them would
+	// both bloat this request and seed the cache with full text, so a later
+	// hover would show the untruncated chapter. Letting chapters fetch on hover
+	// keeps the payload — and the tooltip — consistently small.
 	function prewarm() {
 		var nodes = document.querySelectorAll(".midvash-ref");
 		if (!nodes.length) return;
@@ -341,7 +352,8 @@ export const CLIENT_JS = String.raw`
 		var seen = {};
 		for (var i = 0; i < nodes.length && refs.length < 50; i++) {
 			var ref = nodes[i].getAttribute("data-ref");
-			if (ref && !seen[ref]) { seen[ref] = 1; refs.push(ref); }
+			// Only prewarm refs that carry a verse (": " or ".") — skip chapters.
+			if (ref && !seen[ref] && /\d[:.]\d/.test(ref)) { seen[ref] = 1; refs.push(ref); }
 		}
 		if (!refs.length) return;
 		var url = API_PREFIX + "/passages?refs=" + encodeURIComponent(refs.join(";"));

@@ -632,15 +632,15 @@ describe("client bundle (batch prewarm — /passages)", () => {
 		};
 	}
 
-	it("prewarms all SSR anchors in one /passages call, then hover is a cache hit", async () => {
+	it("prewarms verse/range anchors in one /passages call, then hover is a cache hit", async () => {
 		document.body.innerHTML =
 			'<article>' +
 			'<a class="midvash-ref" data-ref="João 3:16">João 3:16</a>' +
-			'<a class="midvash-ref" data-ref="Salmos 23">Salmos 23</a>' +
+			'<a class="midvash-ref" data-ref="1 Coríntios 13:4-7">1 Coríntios 13:4-7</a>' +
 			'</article>';
 		const fetchMock = vi.fn(async (url: string) => {
 			if (url.includes("/passages")) {
-				return passagesPayload(["João 3:16", "Salmos 23"]) as any;
+				return passagesPayload(["João 3:16", "1 Coríntios 13:4-7"]) as any;
 			}
 			return versePayload() as any;
 		});
@@ -650,11 +650,11 @@ describe("client bundle (batch prewarm — /passages)", () => {
 		await tick();
 		await tick();
 
-		// One batched call covering both refs.
+		// One batched call covering both verse/range refs.
 		const passagesCalls = fetchMock.mock.calls.filter((c) => String(c[0]).includes("/passages"));
 		expect(passagesCalls.length).toBe(1);
 		expect(decodeURIComponent(String(passagesCalls[0][0]))).toContain("João 3:16");
-		expect(decodeURIComponent(String(passagesCalls[0][0]))).toContain("Salmos 23");
+		expect(decodeURIComponent(String(passagesCalls[0][0]))).toContain("1 Coríntios 13:4-7");
 
 		// Hovering a prewarmed ref must NOT trigger a /lookup — it's cached.
 		fetchMock.mockClear();
@@ -665,6 +665,56 @@ describe("client bundle (batch prewarm — /passages)", () => {
 		expect(lookupCalls.length).toBe(0);
 		const tip = document.querySelector(".midvash-tooltip");
 		expect(tip!.textContent).toContain("texto de João 3:16");
+	});
+
+	it("skips whole-chapter anchors from the batch (they fetch on hover with preview)", async () => {
+		document.body.innerHTML =
+			'<article>' +
+			'<a class="midvash-ref" data-ref="João 3:16">João 3:16</a>' +
+			'<a class="midvash-ref" data-ref="Salmos 23">Salmos 23</a>' +
+			'</article>';
+		const fetchMock = vi.fn(async (url: string) => {
+			if (url.includes("/passages")) return passagesPayload(["João 3:16"]) as any;
+			return versePayload() as any;
+		});
+		(globalThis as any).fetch = fetchMock;
+		loadClient();
+		await tick();
+		await tick();
+
+		const batchUrl = decodeURIComponent(
+			String(fetchMock.mock.calls.find((c) => String(c[0]).includes("/passages"))![0]),
+		);
+		expect(batchUrl).toContain("João 3:16");
+		expect(batchUrl).not.toContain("Salmos 23"); // chapter excluded
+
+		// Hovering the chapter DOES fetch (not prewarmed) — via /lookup.
+		fetchMock.mockClear();
+		const chapterAnchor = Array.from(document.querySelectorAll(".midvash-ref")).find(
+			(a) => a.getAttribute("data-ref") === "Salmos 23",
+		)!;
+		chapterAnchor.dispatchEvent(new Event("mouseover", { bubbles: true }));
+		await tick();
+		await tick();
+		expect(fetchMock.mock.calls.some((c) => String(c[0]).includes("/lookup"))).toBe(true);
+	});
+
+	it("appends an ellipsis when the payload is truncated", async () => {
+		document.body.innerHTML =
+			'<article><a class="midvash-ref" data-ref="Salmos 119">Salmos 119</a></article>';
+		(globalThis as any).fetch = vi.fn(async () => ({
+			ok: true,
+			json: async () => ({
+				data: { reference: "Salmos 119", text: "Bem-aventurados os que...", version: "naa", truncated: true },
+			}),
+		}));
+		loadClient();
+		await tick();
+		document.querySelector(".midvash-ref")!.dispatchEvent(new Event("mouseover", { bubbles: true }));
+		await tick();
+		await tick();
+		const tip = document.querySelector(".midvash-tooltip");
+		expect(tip!.textContent).toContain("…");
 	});
 
 	it("does not prewarm when there are no SSR anchors (client-scan fallback path)", async () => {

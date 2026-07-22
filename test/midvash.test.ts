@@ -119,11 +119,30 @@ describe("fetchVerse", () => {
 		expect(http.lastUrl).toBe("https://api.midvash.com/v1/naa/john/3/16-18");
 	});
 
-	it("builds a chapter-only URL", async () => {
+	it("builds a chapter-only URL with ?preview to cap the tooltip payload", async () => {
 		const kv = makeKV();
 		const http = makeHttp(() => new Response(JSON.stringify(VERSE), { status: 200 }));
 		await fetchVerse({ slug: "psalms", matchedName: "Salmos", chapter: 23 }, OPTS, kv, http);
-		expect(http.lastUrl).toBe("https://api.midvash.com/v1/naa/psalms/23");
+		expect(http.lastUrl).toBe("https://api.midvash.com/v1/naa/psalms/23?preview=320");
+	});
+
+	it("does NOT add ?preview to a verse or range URL (full text wanted)", async () => {
+		const kv = makeKV();
+		const http = makeHttp(() => new Response(JSON.stringify(VERSE), { status: 200 }));
+		await fetchVerse({ slug: "john", chapter: 3, verse: 16 } as never, OPTS, kv, http);
+		expect(http.lastUrl).not.toContain("preview");
+	});
+
+	it("propagates meta.truncated from a preview response", async () => {
+		const kv = makeKV();
+		const truncated = {
+			data: { version: "naa", book: "psalms", bookName: "Salmos", chapter: 119, verse: 1, verseEnd: 3, text: "..." },
+			meta: { reference: "Psalms 119", total: 176, truncated: true },
+		};
+		const http = makeHttp(() => new Response(JSON.stringify(truncated), { status: 200 }));
+		const r = await fetchVerse({ slug: "psalms", chapter: 119 } as never, OPTS, kv, http);
+		expect(r.ok).toBe(true);
+		if (r.ok) expect(r.data.meta.truncated).toBe(true);
 	});
 
 	it("returns kind=not-found on an upstream 404 (issue #41)", async () => {
