@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.1
+
+### Patch Changes
+
+- [#72](https://github.com/midvash/bible-emdash-plugin/pull/72) [`68b923c`](https://github.com/midvash/bible-emdash-plugin/commit/68b923c3acdc4c83e24e04061404cba1d44ef241) Thanks [@onetogregorio](https://github.com/onetogregorio)! - Fix: whole-chapter tooltips stayed broken for references cached before v0.6.0. `fetchVerse`/`fetchPassages` now normalize the payload on cache read (not just on fresh fetch), so a pre-existing KV entry without `text` (e.g. `Psalm 23`) is healed transparently instead of served as-is.
+
 ## 0.6.0
 
 ### Minor Changes
