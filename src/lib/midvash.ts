@@ -50,8 +50,18 @@ export interface VerseResponse {
 		// The API's `meta` has no `cached` field — cache state is this plugin's
 		// own KV layer, surfaced separately by the route handler.
 		cached?: boolean;
+		// True when the API truncated a whole-chapter `text` (via `?preview=N`);
+		// the tooltip appends an ellipsis and leans on the "read more" link.
+		truncated?: boolean;
 	};
 }
+
+/**
+ * Chars requested for a whole-chapter tooltip via the API's `?preview=N`.
+ * A whole chapter would otherwise be huge (Psalm 119 ≈ 13 KB) for a hover
+ * card that shows a few lines; the API truncates at a verse boundary.
+ */
+export const CHAPTER_PREVIEW_CHARS = 320;
 
 /**
  * A batch item from `GET /v1/passages`. Either a resolved verse/chapter
@@ -173,7 +183,11 @@ export async function fetchVerse(
 				? `/${ref.verse}-${ref.verseEnd}`
 				: `/${ref.verse}`;
 
-	const url = `https://api.midvash.com/v1/${encodeURIComponent(opts.version)}/${ref.slug}/${ref.chapter}${versePath}`;
+	// Whole-chapter refs get `?preview=N` so the tooltip payload stays small
+	// (the API truncates at a verse boundary and sets `meta.truncated`). Verse
+	// and range refs are already short — fetch them in full.
+	const previewQuery = ref.verse === undefined ? `?preview=${CHAPTER_PREVIEW_CHARS}` : "";
+	const url = `https://api.midvash.com/v1/${encodeURIComponent(opts.version)}/${ref.slug}/${ref.chapter}${versePath}${previewQuery}`;
 
 	const controller = new AbortController();
 	const timer = setTimeout(() => controller.abort(), opts.timeoutMs);

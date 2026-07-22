@@ -52,12 +52,18 @@ Order preserved; a bad ref becomes `{ ref, error }` **in place** (batch doesn't 
 those too (`john 3:16` resolves). The in-repo `fetchPassages` joins tokens with `,` and maps results
 back by index, seeding the same `cache:verse:…` KV keys `fetchVerse` reads.
 
-⚠️ **Chapter shape still inconsistent (as of 2026-07-21):** a whole-chapter item (batch or
-`/v1/{version}/{book}/{chapter}`) STILL returns only `verses[]` — no `text`/`verse`/`verseEnd` —
-and `?preview=N` is NOT honored, contrary to what an API-side changelog may claim. `/openapi.json`
-and `/docs` were still **404**. The plugin backfills client-side via `normalizeVerseData` (joins
-`verses[]` → `text`, sets `verse:1`/`verseEnd:len`). Keep that workaround until the live API is
-re-verified as fixed.
+✅ **Chapter shape fixed & `?preview=N` shipped (verified live 2026-07-22, all `cf-cache-status: MISS`):**
+a whole-chapter payload (`/v1/{version}/{book}/{chapter}`, and the chapter item in `/v1/passages`)
+now includes `text` (joined verses) + `verse:1`/`verseEnd:<last>` alongside `verses[]`.
+`?preview=N` (clamp [40,2000]) on the single-chapter endpoint truncates `text` at a verse boundary,
+**omits `verses[]`**, and sets **`meta.truncated: true`**. ⚠️ `/v1/passages` does NOT accept
+`preview` (returns full chapter text). `/openapi.json` (OpenAPI 3) and `/docs` now return 200, and
+discovery `GET /v1` advertises them (`documentation` → `/docs`, new `openapi` field).
+
+Plugin usage: `fetchVerse` appends `?preview=CHAPTER_PREVIEW_CHARS` (320) for whole-chapter refs and
+surfaces `meta.truncated` so the tooltip shows an ellipsis; the client prewarm **skips chapters** (no
+preview on batch). `normalizeVerseData` is now a **no-op safeguard** — kept only to heal chapter
+entries cached in KV before the fix (30-day TTL); remove it after that window.
 
 ## Success shapes (verified live)
 

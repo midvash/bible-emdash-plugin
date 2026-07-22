@@ -77,6 +77,9 @@ function toLookupPayload(
 		text: verse.data.text,
 		version,
 		readMoreUrl: buildReadMoreUrl(parsed, version, language),
+		// `truncated` — the API capped a whole-chapter preview; the client shows
+		// an ellipsis and leans on the read-more link.
+		truncated: verse.meta.truncated === true,
 		meta: { cached: verse.meta.cached, upstreamReference: verse.meta.reference },
 	};
 }
