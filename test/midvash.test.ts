@@ -89,6 +89,29 @@ describe("fetchVerse", () => {
 		expect(http.calls).toBe(1); // served from cache, no new request
 	});
 
+	it("heals a pre-fix cached chapter payload (no text) on read", async () => {
+		// A KV entry written before normalizeVerseData existed: chapter shape
+		// with only verses[], no text/verse/verseEnd. Serving it as-is would
+		// re-break the tooltip; fetchVerse must normalize on cache read too.
+		const staleChapter = {
+			at: Date.now(),
+			data: {
+				data: { version: "naa", book: "psalms", bookName: "Salmos", chapter: 23, verses: ["a", "b"] },
+				meta: { reference: "Psalms 23", total: 2 },
+			},
+		};
+		const kv = makeKV({ "cache:verse:naa:psalms:23:0-0": staleChapter });
+		const http = makeHttp(() => new Response("{}", { status: 500 }));
+		const res = await fetchVerse({ slug: "psalms", chapter: 23 } as never, OPTS, kv, http);
+		expect(http.calls).toBe(0); // still a cache hit, no refetch
+		expect(res.ok).toBe(true);
+		if (res.ok) {
+			expect(res.data.data.text).toBe("a b");
+			expect(res.data.data.verse).toBe(1);
+			expect(res.data.data.verseEnd).toBe(2);
+		}
+	});
+
 	it("builds a range URL", async () => {
 		const kv = makeKV();
 		const http = makeHttp(() => new Response(JSON.stringify(VERSE), { status: 200 }));
@@ -309,6 +332,24 @@ describe("fetchPassages (batch via /v1/passages)", () => {
 		const results = await fetchPassages(REFS, OPTS, kv, http);
 		expect(http.calls).toBe(0);
 		expect(results.every((r) => r.ok)).toBe(true);
+	});
+
+	it("heals a pre-fix cached chapter payload (no text) on read", async () => {
+		const { fetchPassages } = await import("../src/lib/midvash.ts");
+		const kv = makeKV({
+			"cache:verse:naa:psalms:23:0-0": {
+				at: Date.now(),
+				data: {
+					data: { version: "naa", book: "psalms", bookName: "Salmos", chapter: 23, verses: ["a", "b"] },
+					meta: { reference: "Psalms 23", total: 2 },
+				},
+			},
+		});
+		const http = makeHttp(() => new Response("{}", { status: 500 }));
+		const [res] = await fetchPassages([{ slug: "psalms", chapter: 23 }] as never[], OPTS, kv, http);
+		expect(http.calls).toBe(0);
+		expect(res.ok).toBe(true);
+		if (res.ok) expect(res.data.data.text).toBe("a b");
 	});
 
 	it("maps per-item error strings to not-found without failing the batch", async () => {

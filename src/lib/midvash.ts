@@ -158,7 +158,11 @@ export async function fetchVerse(
 	if (opts.cacheEnabled) {
 		const cached = await kv.get<{ at: number; data: VerseResponse }>(cacheKey);
 		if (cached && Date.now() - cached.at < opts.cacheTtlSeconds * 1000) {
-			return { ok: true, data: cached.data };
+			// Heal pre-fix entries: a chapter payload cached before
+			// normalizeVerseData existed lacks `text` and would re-break the
+			// tooltip if served as-is. Normalizing on read is a no-op for
+			// already-complete payloads.
+			return { ok: true, data: { ...cached.data, data: normalizeVerseData(cached.data.data) } };
 		}
 	}
 
@@ -229,7 +233,8 @@ export async function fetchPassages(
 		if (opts.cacheEnabled) {
 			const cached = await kv.get<{ at: number; data: VerseResponse }>(key);
 			if (cached && Date.now() - cached.at < opts.cacheTtlSeconds * 1000) {
-				results[i] = { ok: true, data: cached.data };
+				// Heal pre-fix chapter entries on read (see fetchVerse).
+				results[i] = { ok: true, data: { ...cached.data, data: normalizeVerseData(cached.data.data) } };
 				continue;
 			}
 		}
