@@ -614,3 +614,65 @@ describe("client bundle (inline-script </ escape regression — production hotfi
 		expect(body.innerHTML).not.toContain("Texto com < dentro");
 	});
 });
+
+describe("client bundle (batch prewarm — /passages)", () => {
+	function passagesPayload(refs: string[]) {
+		return {
+			ok: true,
+			json: async () => ({
+				data: {
+					results: refs.map((r) => ({
+						reference: r,
+						text: "texto de " + r,
+						version: "naa",
+						readMoreUrl: "https://midvash.com/x",
+					})),
+				},
+			}),
+		};
+	}
+
+	it("prewarms all SSR anchors in one /passages call, then hover is a cache hit", async () => {
+		document.body.innerHTML =
+			'<article>' +
+			'<a class="midvash-ref" data-ref="João 3:16">João 3:16</a>' +
+			'<a class="midvash-ref" data-ref="Salmos 23">Salmos 23</a>' +
+			'</article>';
+		const fetchMock = vi.fn(async (url: string) => {
+			if (url.includes("/passages")) {
+				return passagesPayload(["João 3:16", "Salmos 23"]) as any;
+			}
+			return versePayload() as any;
+		});
+		(globalThis as any).fetch = fetchMock;
+
+		loadClient();
+		await tick();
+		await tick();
+
+		// One batched call covering both refs.
+		const passagesCalls = fetchMock.mock.calls.filter((c) => String(c[0]).includes("/passages"));
+		expect(passagesCalls.length).toBe(1);
+		expect(decodeURIComponent(String(passagesCalls[0][0]))).toContain("João 3:16");
+		expect(decodeURIComponent(String(passagesCalls[0][0]))).toContain("Salmos 23");
+
+		// Hovering a prewarmed ref must NOT trigger a /lookup — it's cached.
+		fetchMock.mockClear();
+		document.querySelectorAll(".midvash-ref")[0].dispatchEvent(new Event("mouseover", { bubbles: true }));
+		await tick();
+		await tick();
+		const lookupCalls = fetchMock.mock.calls.filter((c) => String(c[0]).includes("/lookup"));
+		expect(lookupCalls.length).toBe(0);
+		const tip = document.querySelector(".midvash-tooltip");
+		expect(tip!.textContent).toContain("texto de João 3:16");
+	});
+
+	it("does not prewarm when there are no SSR anchors (client-scan fallback path)", async () => {
+		document.body.innerHTML = "<article><p>sem referências aqui</p></article>";
+		const fetchMock = vi.fn(async () => versePayload() as any);
+		(globalThis as any).fetch = fetchMock;
+		loadClient();
+		await tick();
+		expect(fetchMock.mock.calls.filter((c) => String(c[0]).includes("/passages")).length).toBe(0);
+	});
+});

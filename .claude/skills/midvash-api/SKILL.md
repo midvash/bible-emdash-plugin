@@ -5,7 +5,7 @@ description: >-
   plugin. Use when touching src/lib/midvash.ts, adding/validating Bible versions or book slugs,
   building "read more" URLs, debugging a failed lookup, or wiring caching. Covers the full
   endpoint set, response & error shapes, caching/ETag/CORS headers, and version & book slug
-  rules. Facts checked against the live API on 2026-06-04 — hit `GET /v1` (discovery) and
+  rules. Facts checked against the live API on 2026-07-21 — hit `GET /v1` (discovery) and
   `/v1/versions` for the current truth. Version values for this plugin live in `src/lib/settings.ts`.
 ---
 
@@ -26,12 +26,38 @@ GET /v1/books                                list books (multilingual names/slug
 GET /v1/books/{slug}                         single book
 GET /v1/{version}/{book}/{chapter}           whole chapter
 GET /v1/{version}/{book}/{chapter}/{verse}   single verse OR range ("16" or "16-20")
+GET /v1/passages?refs=…&version=…            BATCH lookup (≤50 refs, free-text, ","-sep)
+GET /v1/votd                                 verse of the day
+GET /v1/parse?ref=…                          parse a free-text reference (no verse text)
 ```
 
 - `{version}` — a slug from `/v1/versions` (e.g. `naa`, `niv`, `rvr1960`).
 - `{book}` — English lowercase slug (`john`, `psalms`, `1-corinthians`) = `BookData.slug` in
   `src/lib/books.ts`. (Localized slugs are also exposed via `/v1/books`.)
-- The plugin only uses the chapter + verse/range endpoints.
+- The plugin uses chapter + verse/range (`fetchVerse`) and **batch** (`fetchPassages`).
+
+## Batch — `GET /v1/passages` (verified live 2026-07-21)
+
+`?refs=` is a **comma-separated list of FREE-TEXT refs** (e.g. `john 3:16,genesis 1:1-3,psalms 23`
+— same grammar `/v1/parse` accepts), NOT dotted notation. Up to **50** refs; `version=<slug>` required.
+
+```json
+{ "data": [ {…verse/chapter payload…, "reference":"John 3:16"},
+            { "ref":"notabook 99", "error":"Book \"notabook\" not found." } ],
+  "meta": { "total":2, "version":"naa", "resolved":1, "failed":1 } }
+```
+Order preserved; a bad ref becomes `{ ref, error }` **in place** (batch doesn't fail). An invalid
+*version* 404s the whole batch. Cache: all-OK batch = immutable 1 yr; any failure = 300 s.
+⚠️ Note the plugin passes its own `slug` tokens (English book slugs) as free text — the API accepts
+those too (`john 3:16` resolves). The in-repo `fetchPassages` joins tokens with `,` and maps results
+back by index, seeding the same `cache:verse:…` KV keys `fetchVerse` reads.
+
+⚠️ **Chapter shape still inconsistent (as of 2026-07-21):** a whole-chapter item (batch or
+`/v1/{version}/{book}/{chapter}`) STILL returns only `verses[]` — no `text`/`verse`/`verseEnd` —
+and `?preview=N` is NOT honored, contrary to what an API-side changelog may claim. `/openapi.json`
+and `/docs` were still **404**. The plugin backfills client-side via `normalizeVerseData` (joins
+`verses[]` → `text`, sets `verse:1`/`verseEnd:len`). Keep that workaround until the live API is
+re-verified as fixed.
 
 ## Success shapes (verified live)
 
@@ -119,7 +145,7 @@ suggestion — and offer to apply it:
 - **Stale/wrong** — a claim here contradicted reality → quote the line and give the fix.
 - **Missing** — you hit a gotcha or needed something this file doesn't cover → draft the bullet.
 - **Drift check** — re-hit `GET /v1` (discovery) and `/v1/versions`; if an endpoint, field,
-  error code, or version slug changed since 2026-06-04, update the matching section here.
+  error code, or version slug changed since 2026-07-21, update the matching section here.
 
 Emit a short `📝 skill update:` note (exact section + proposed text), or
 `📝 skill: matched reality, no change` if nothing came up. Prefer an Edit to this file over
