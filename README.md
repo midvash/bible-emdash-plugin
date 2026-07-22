@@ -148,6 +148,7 @@ All routes are served under `/_emdash/api/plugins/bible-by-midvash/`.
 | Route | Description |
 | --------------------- | -------------------------------------- |
 | `GET /lookup?ref=...` | Resolve a reference (public, JSON, cached 5 min on EmDash 0.30+) |
+| `GET /passages?refs=` | Batch-resolve refs (`;`-separated) in one upstream call (public, JSON) |
 | `GET /versions?lang=` | List available versions (public, JSON, cached 1 h on EmDash 0.30+) |
 | `GET /settings` | Read settings (admin) |
 | `POST /settings/save` | Persist settings (admin) |
@@ -157,7 +158,13 @@ The tooltip script + styles are delivered by the `page:fragments` hook (not a ro
 
 On EmDash **0.30+** the `scan` route is also exposed as an **MCP tool**, so an
 admin-connected AI agent can detect Bible references in arbitrary text through
-the CMS's MCP endpoint.
+the CMS's MCP endpoint. Pass `includeText: true` to also get each verse's text
+(resolved in one batched API call).
+
+**Performance:** the client pre-warms every reference on a page in a single
+`/passages` batch call once the browser is idle, so the first hover is instant.
+Whole-chapter references (e.g. `Psalm 23`) now render their text too — the client
+backfills the joined verses when the API's chapter response omits `text`.
 
 ## Visual identity
 

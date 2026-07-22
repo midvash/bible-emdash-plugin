@@ -11,6 +11,8 @@
  *
  * Routes (all JSON — EmDash wraps every plugin route reply as { data: ... }):
  *   GET  /lookup?ref=&v=&lang=   public — resolve a single reference (cached 5 min)
+ *   GET  /passages?refs=&v=&lang= public — batch-resolve refs (`;`-separated) in
+ *                                 one upstream call; same envelope as /lookup
  *   GET  /versions?lang=         public — list versions (cached 1 h)
  *   GET  /settings               admin  — read all settings
  *   POST /settings/save          admin  — patch settings
@@ -25,7 +27,8 @@ import type { PluginContext, SandboxedPlugin } from "emdash/plugin";
 
 import { displayName, type Language } from "./lib/books.ts";
 import { findReferences, parseReference } from "./lib/parser.ts";
-import { buildReadMoreUrl, fetchVerse, fetchVersions } from "./lib/midvash.ts";
+import { buildReadMoreUrl, fetchVerse, fetchPassages, fetchVersions } from "./lib/midvash.ts";
+import type { VerseResult } from "./lib/midvash.ts";
 import { buildClientAssets } from "./lib/client-assets.ts";
 import {
 	DEFAULTS,
@@ -36,6 +39,47 @@ import {
 } from "./lib/settings.ts";
 
 const SETTINGS_PREFIX = "settings:";
+
+/** A parsed reference paired with its language-aware display string. */
+type ParsedRef = ReturnType<typeof parseReference>;
+
+/**
+ * Build the language-aware display reference (e.g. "João 3:16"), preferring the
+ * author's exact matched name over the canonical name in `language`.
+ */
+function displayReference(parsed: NonNullable<ParsedRef>, language: Language): string {
+	const versePart =
+		parsed.verse !== undefined
+			? `:${parsed.verse}${parsed.verseEnd && parsed.verseEnd !== parsed.verse ? `-${parsed.verseEnd}` : ""}`
+			: "";
+	return `${parsed.matchedName || displayName(parsed.slug, language)} ${parsed.chapter}${versePart}`.trim();
+}
+
+/**
+ * Shape a single {@link VerseResult} into the JSON the client tooltip expects —
+ * shared by the `lookup` (single) and `passages` (batch) routes so both return
+ * the identical envelope.
+ */
+function toLookupPayload(
+	parsed: NonNullable<ParsedRef>,
+	result: VerseResult,
+	version: string,
+	language: Language,
+): Record<string, unknown> {
+	const reference = displayReference(parsed, language);
+	if (!result.ok) {
+		// Issue #41: distinguish "verse not found" (404) from "couldn't load".
+		return { error: result.kind, reference, version };
+	}
+	const verse = result.data;
+	return {
+		reference,
+		text: verse.data.text,
+		version,
+		readMoreUrl: buildReadMoreUrl(parsed, version, language),
+		meta: { cached: verse.meta.cached, upstreamReference: verse.meta.reference },
+	};
+}
 
 /**
  * Read all settings from this plugin's KV store, falling back to DEFAULTS.
@@ -159,35 +203,53 @@ export default {
 					ctx.http,
 				);
 
-				// Build the display reference in the requested language, preferring
-				// the author's exact matched name (preserves casing/accents), then
-				// the canonical name in `language`.
-				const versePart =
-					parsed.verse !== undefined
-						? `:${parsed.verse}${parsed.verseEnd && parsed.verseEnd !== parsed.verse ? `-${parsed.verseEnd}` : ""}`
-						: "";
-				const displayRef =
-					`${parsed.matchedName || displayName(parsed.slug, language)} ${parsed.chapter}${versePart}`.trim();
+				return toLookupPayload(parsed, result, version, language);
+			},
+		},
 
-				if (!result.ok) {
-					// Issue #41: distinguish "verse not found" (404) from
-					// "couldn't load" (network/timeout/5xx) so the client can
-					// surface a clearer message to the author.
-					return {
-						error: result.kind,
-						reference: displayRef,
+		// Batch sibling of /lookup: resolve many refs in ONE upstream call
+		// (GET /v1/passages) so the client can pre-warm every reference on a page
+		// at once instead of paying per-hover latency. `?refs=` is a
+		// semicolon-separated list; results come back in input order, each in the
+		// same envelope as /lookup (unparseable refs become {error:"unrecognized"}).
+		passages: {
+			public: true,
+			cacheControl: "public, max-age=300, stale-while-revalidate=3600",
+			handler: async (routeCtx: any, ctx: PluginContext) => {
+				const url = new URL(routeCtx.request.url);
+				const refsRaw = url.searchParams.get("refs");
+				if (!refsRaw) throw new Error("Missing ?refs");
+
+				const settings = await loadSettings(ctx);
+				const version = url.searchParams.get("v") || settings.defaultVersion;
+				const language = (url.searchParams.get("lang") as Language) || settings.language;
+				if (!ctx.http) throw new Error("Network capability missing");
+
+				const tokens = refsRaw.split(";").map((t) => t.trim()).filter(Boolean);
+				// Parse up front so unparseable refs keep their slot without a
+				// wasted upstream lookup, and the parseable ones batch together.
+				const parsed = tokens.map((t) => parseReference(t));
+				const resolvable = parsed.filter((p): p is NonNullable<ParsedRef> => p !== null);
+
+				const verseResults = await fetchPassages(
+					resolvable,
+					{
 						version,
-					};
-				}
+						timeoutMs: settings.apiTimeoutMs,
+						cacheEnabled: settings.cacheEnabled,
+						cacheTtlSeconds: settings.cacheTtlSeconds,
+					},
+					ctx.kv,
+					ctx.http,
+				);
 
-				const verse = result.data;
-				return {
-					reference: displayRef,
-					text: verse.data.text,
-					version,
-					readMoreUrl: buildReadMoreUrl(parsed, version, language),
-					meta: { cached: verse.meta.cached, upstreamReference: verse.meta.reference },
-				};
+				let cursor = 0;
+				const results = parsed.map((p) =>
+					p === null
+						? { error: "unrecognized" as const }
+						: toLookupPayload(p, verseResults[cursor++], version, language),
+				);
+				return { results };
 			},
 		},
 
@@ -263,10 +325,37 @@ export default {
 		scan: {
 			public: false,
 			permission: "plugins:manage",
-			handler: async (routeCtx: any) => {
+			handler: async (routeCtx: any, ctx: PluginContext) => {
 				const text = (routeCtx.input?.text ?? "") as string;
+				const includeText = routeCtx.input?.includeText === true;
 				const matches = [];
 				for (const m of findReferences(text)) matches.push(m);
+
+				// Opt-in: resolve verse text for every match in ONE batch call
+				// (GET /v1/passages) so an agent gets the text without N follow-up
+				// lookups. Best-effort — a failed lookup just omits `text` for that
+				// match; the coordinates are always returned.
+				if (includeText && matches.length > 0 && ctx.http) {
+					const settings = await loadSettings(ctx);
+					const verseResults = await fetchPassages(
+						matches,
+						{
+							version: settings.defaultVersion,
+							timeoutMs: settings.apiTimeoutMs,
+							cacheEnabled: settings.cacheEnabled,
+							cacheTtlSeconds: settings.cacheTtlSeconds,
+						},
+						ctx.kv,
+						ctx.http,
+					);
+					return {
+						matches: matches.map((m, i) => {
+							const r = verseResults[i];
+							return r?.ok ? { ...m, text: r.data.data.text } : m;
+						}),
+					};
+				}
+
 				return { matches };
 			},
 		},
@@ -279,11 +368,15 @@ export default {
 		tools: {
 			scan: {
 				description:
-					"Detect Bible references (PT-BR, EN, ES) in a text. Returns each match with its canonical book slug, chapter and verse range — the same parser the tooltip plugin uses on rendered pages.",
+					"Detect Bible references (PT-BR, EN, ES) in a text. Returns each match with its canonical book slug, chapter and verse range — the same parser the tooltip plugin uses on rendered pages. Set includeText to also fetch the verse text (one batched API call).",
 				route: "scan",
 				destructive: false,
 				input: z.object({
 					text: z.string().min(1).describe("The text to scan for Bible references"),
+					includeText: z
+						.boolean()
+						.optional()
+						.describe("When true, resolve and include each verse's text (default false)"),
 				}),
 				output: z.object({
 					matches: z.array(
@@ -293,6 +386,7 @@ export default {
 							verse: z.number().optional(),
 							verseEnd: z.number().optional(),
 							matchedName: z.string().optional(),
+							text: z.string().optional(),
 						}),
 					),
 				}),

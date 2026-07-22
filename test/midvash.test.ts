@@ -195,3 +195,177 @@ describe("fetchVersions", () => {
 		expect(await fetchVersions(undefined, 5000, kv, http)).toBeNull();
 	});
 });
+
+describe("normalizeVerseData (whole-chapter shape, API inconsistency)", () => {
+	it("synthesizes text/verse/verseEnd when upstream sends only verses[]", async () => {
+		const { normalizeVerseData } = await import("../src/lib/midvash.ts");
+		const data = normalizeVerseData({
+			version: "naa",
+			book: "psalms",
+			bookName: "Salmos",
+			chapter: 23,
+			verses: ["v1", "v2", "v3"],
+		} as never);
+		expect(data.text).toBe("v1 v2 v3");
+		expect(data.verse).toBe(1);
+		expect(data.verseEnd).toBe(3);
+	});
+
+	it("leaves complete verse payloads untouched", async () => {
+		const { normalizeVerseData } = await import("../src/lib/midvash.ts");
+		expect(normalizeVerseData(VERSE.data)).toEqual(VERSE.data);
+	});
+});
+
+describe("fetchVerse — whole-chapter refs get text (upstream shape gap)", () => {
+	it("returns joined text for a chapter-only reference", async () => {
+		const chapterPayload = {
+			data: {
+				version: "naa",
+				book: "psalms",
+				bookName: "Salmos",
+				chapter: 23,
+				verses: ["O SENHOR é o meu pastor;", "Ele me faz repousar."],
+			},
+			meta: { reference: "Psalms 23", total: 2 },
+		};
+		const http = makeHttp(() => new Response(JSON.stringify(chapterPayload), { status: 200 }));
+		const res = await fetchVerse(
+			{ slug: "psalms", chapter: 23 } as never,
+			OPTS,
+			makeKV(),
+			http,
+		);
+		expect(res.ok).toBe(true);
+		if (res.ok) {
+			expect(res.data.data.text).toBe("O SENHOR é o meu pastor; Ele me faz repousar.");
+			expect(res.data.data.verse).toBe(1);
+			expect(res.data.data.verseEnd).toBe(2);
+		}
+	});
+});
+
+describe("fetchPassages (batch via /v1/passages)", () => {
+	const batchEnvelope = (items: unknown[]) => ({
+		data: items,
+		meta: { total: items.length, version: "naa", resolved: items.length, failed: 0 },
+	});
+	const johnItem = {
+		version: "naa", book: "john", bookName: "John", chapter: 3,
+		verse: 16, verseEnd: 16, text: "Porque Deus amou o mundo...",
+		verses: ["Porque Deus amou o mundo..."], reference: "John 3:16",
+	};
+	const psalmsChapterItem = {
+		version: "naa", book: "psalms", bookName: "Psalms", chapter: 23,
+		verses: ["v1", "v2"], reference: "Psalms 23",
+	};
+
+	const REFS = [
+		{ slug: "john", chapter: 3, verse: 16 },
+		{ slug: "psalms", chapter: 23 },
+	] as never[];
+
+	it("resolves N refs with ONE upstream call, using slug notation", async () => {
+		const { fetchPassages } = await import("../src/lib/midvash.ts");
+		const http = makeHttp(() =>
+			new Response(JSON.stringify(batchEnvelope([johnItem, psalmsChapterItem])), { status: 200 }),
+		);
+		const results = await fetchPassages(REFS, OPTS, makeKV(), http);
+		expect(http.calls).toBe(1);
+		expect(http.lastUrl).toContain("/v1/passages?");
+		expect(decodeURIComponent(http.lastUrl)).toContain("john 3:16");
+		expect(decodeURIComponent(http.lastUrl)).toContain("psalms 23");
+		expect(http.lastUrl).toContain("version=naa");
+		expect(results).toHaveLength(2);
+		expect(results[0].ok).toBe(true);
+		if (results[0].ok) expect(results[0].data.data.text).toContain("Porque Deus amou");
+		// Chapter item gets normalized (joined text) like fetchVerse does.
+		expect(results[1].ok).toBe(true);
+		if (results[1].ok) expect(results[1].data.data.text).toBe("v1 v2");
+	});
+
+	it("seeds the same KV cache keys fetchVerse reads", async () => {
+		const { fetchPassages } = await import("../src/lib/midvash.ts");
+		const kv = makeKV();
+		const http = makeHttp(() =>
+			new Response(JSON.stringify(batchEnvelope([johnItem, psalmsChapterItem])), { status: 200 }),
+		);
+		await fetchPassages(REFS, OPTS, kv, http);
+		expect(kv.store.has("cache:verse:naa:john:3:16-0")).toBe(true);
+		expect(kv.store.has("cache:verse:naa:psalms:23:0-0")).toBe(true);
+		// And a subsequent fetchVerse is a pure cache hit (no extra upstream call).
+		const res = await fetchVerse({ slug: "john", chapter: 3, verse: 16 } as never, OPTS, kv, http);
+		expect(res.ok).toBe(true);
+		expect(http.calls).toBe(1);
+	});
+
+	it("serves KV hits without fetching at all", async () => {
+		const { fetchPassages } = await import("../src/lib/midvash.ts");
+		const kv = makeKV({
+			"cache:verse:naa:john:3:16-0": { at: Date.now(), data: VERSE },
+			"cache:verse:naa:psalms:23:0-0": { at: Date.now(), data: VERSE },
+		});
+		const http = makeHttp(() => new Response("{}", { status: 500 }));
+		const results = await fetchPassages(REFS, OPTS, kv, http);
+		expect(http.calls).toBe(0);
+		expect(results.every((r) => r.ok)).toBe(true);
+	});
+
+	it("maps per-item error strings to not-found without failing the batch", async () => {
+		const { fetchPassages } = await import("../src/lib/midvash.ts");
+		const http = makeHttp(() =>
+			new Response(
+				JSON.stringify(batchEnvelope([{ ref: "notabook 99", error: 'Book "notabook" not found.' }, johnItem])),
+				{ status: 200 },
+			),
+		);
+		const results = await fetchPassages(
+			[{ slug: "notabook", chapter: 99 }, { slug: "john", chapter: 3, verse: 16 }] as never[],
+			OPTS, makeKV(), http,
+		);
+		expect(results[0]).toEqual({ ok: false, kind: "not-found" });
+		expect(results[1].ok).toBe(true);
+	});
+
+	it("partitions requests above the API's 50-ref limit", async () => {
+		const { fetchPassages } = await import("../src/lib/midvash.ts");
+		const many = Array.from({ length: 60 }, (_, i) => ({ slug: "john", chapter: 3, verse: i + 1 }));
+		const http = makeHttp((url) => {
+			const refs = decodeURIComponent(new URL(url).searchParams.get("refs") ?? "").split(",");
+			return new Response(
+				JSON.stringify(batchEnvelope(refs.map((r) => ({
+					...johnItem, verse: Number(r.split(":")[1]), verseEnd: Number(r.split(":")[1]),
+				})))),
+				{ status: 200 },
+			);
+		});
+		const results = await fetchPassages(many as never[], { ...OPTS, cacheEnabled: false }, makeKV(), http);
+		expect(http.calls).toBe(2);
+		expect(results).toHaveLength(60);
+		expect(results.every((r) => r.ok)).toBe(true);
+	});
+
+	it("degrades every miss to fetch-error when the batch request fails", async () => {
+		const { fetchPassages } = await import("../src/lib/midvash.ts");
+		const http = makeHttp(() => new Response("{}", { status: 500 }));
+		const results = await fetchPassages(REFS, { ...OPTS, cacheEnabled: false }, makeKV(), http);
+		expect(results).toEqual([
+			{ ok: false, kind: "fetch-error" },
+			{ ok: false, kind: "fetch-error" },
+		]);
+	});
+
+	it("degrades to fetch-error when the batch request throws (timeout/network)", async () => {
+		const { fetchPassages } = await import("../src/lib/midvash.ts");
+		const http: HttpLike = {
+			async fetch() {
+				throw new Error("aborted");
+			},
+		};
+		const results = await fetchPassages(REFS, { ...OPTS, cacheEnabled: false }, makeKV(), http);
+		expect(results).toEqual([
+			{ ok: false, kind: "fetch-error" },
+			{ ok: false, kind: "fetch-error" },
+		]);
+	});
+});

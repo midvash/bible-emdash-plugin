@@ -328,6 +328,37 @@ export const CLIENT_JS = String.raw`
 			});
 	}
 
+	// Batch pre-warm: collect every reference already on the page and resolve
+	// them in ONE /passages call, seeding SESSION_CACHE so the first hover of
+	// any ref is instant. Results come back in input order (see the passages
+	// route), so we map them back to the exact data-ref keys hover uses. Capped
+	// at the API's 50-ref batch limit; deduped. Best-effort — any failure just
+	// leaves hover to fetch per-ref as before.
+	function prewarm() {
+		var nodes = document.querySelectorAll(".midvash-ref");
+		if (!nodes.length) return;
+		var refs = [];
+		var seen = {};
+		for (var i = 0; i < nodes.length && refs.length < 50; i++) {
+			var ref = nodes[i].getAttribute("data-ref");
+			if (ref && !seen[ref]) { seen[ref] = 1; refs.push(ref); }
+		}
+		if (!refs.length) return;
+		var url = API_PREFIX + "/passages?refs=" + encodeURIComponent(refs.join(";"));
+		fetch(url, { headers: { Accept: "application/json" } })
+			.then(function (r) { return r.ok ? r.json() : Promise.reject(r); })
+			.then(function (raw) {
+				var results = raw && raw.data && raw.data.results ? raw.data.results
+					: raw && raw.results ? raw.results : null;
+				if (!results) return;
+				for (var j = 0; j < refs.length; j++) {
+					var d = results[j];
+					if (d && d.text) SESSION_CACHE.set(refs[j], d);
+				}
+			})
+			.catch(function () { /* hover falls back to per-ref /lookup */ });
+	}
+
 	// --- Event wiring -----------------------------------------------------
 
 	function showFor(target) {
@@ -466,6 +497,11 @@ export const CLIENT_JS = String.raw`
 			});
 		}
 		attachListeners();
+		// Pre-warm the tooltips for every ref on the page once the browser is
+		// idle, so the first hover is a cache hit. Runs after the (optional)
+		// client scan so client-inserted anchors are batched too.
+		var idle = window.requestIdleCallback || function (fn) { return setTimeout(fn, 1); };
+		idle(prewarm);
 	}
 
 	if (document.readyState === "loading") {

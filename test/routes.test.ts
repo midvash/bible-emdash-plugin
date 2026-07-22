@@ -301,3 +301,90 @@ describe("MCP tools (EmDash ≥0.30 agent-callable routes)", () => {
 		}
 	});
 });
+
+describe("passages route (batch, EmDash ≥0.30 practices)", () => {
+	const meta = def.routes as Record<string, { public?: boolean; cacheControl?: string }>;
+	const batch = (items: unknown[]) => ({
+		data: items,
+		meta: { total: items.length, version: "naa", resolved: items.length, failed: 0 },
+	});
+	const johnItem = {
+		version: "naa", book: "john", bookName: "John", chapter: 3,
+		verse: 16, verseEnd: 16, text: "Porque Deus amou o mundo...",
+		verses: ["Porque Deus amou o mundo..."], reference: "John 3:16",
+	};
+	const psalmsChapter = {
+		version: "naa", book: "psalms", bookName: "Psalms", chapter: 23,
+		verses: ["v1", "v2"], reference: "Psalms 23",
+	};
+
+	it("is public and cacheable", () => {
+		expect(meta.passages.public).toBe(true);
+		expect(meta.passages.cacheControl).toMatch(/^public, max-age=\d+/);
+	});
+
+	it("resolves multiple refs from ?refs= in one call, matching /lookup shape", async () => {
+		let calls = 0;
+		const http = { async fetch() { calls++; return new Response(JSON.stringify(batch([johnItem, psalmsChapter])), { status: 200 }); } };
+		const ctx = makeCtx({ http });
+		const rc = { request: { url: "http://localhost/passages?refs=" + encodeURIComponent("João 3:16;Salmos 23") } };
+		const out = (await def.routes.passages.handler(rc, ctx)) as any;
+		expect(calls).toBe(1);
+		expect(out.results).toHaveLength(2);
+		expect(out.results[0].text).toContain("Porque Deus amou");
+		expect(out.results[0].reference).toBe("João 3:16");
+		expect(out.results[0].readMoreUrl).toBe("https://midvash.com/pt-br/naa/joao/3/16");
+		// Whole-chapter ref gets joined text (normalizeVerseData) instead of undefined.
+		expect(out.results[1].text).toBe("v1 v2");
+	});
+
+	it("reports per-ref not-found without failing the batch", async () => {
+		// Both refs PARSE (valid book names); the API rejects the first
+		// (nonexistent chapter) via a per-item error, which must map to
+		// not-found without dropping the second.
+		const http = { async fetch() { return new Response(JSON.stringify(batch([{ ref: "João 99:1", error: "Verse(s) out of range." }, johnItem])), { status: 200 }); } };
+		const rc = { request: { url: "http://localhost/passages?refs=" + encodeURIComponent("João 99:1;João 3:16") } };
+		const out = (await def.routes.passages.handler(rc, makeCtx({ http }))) as any;
+		expect(out.results[0].error).toBe("not-found");
+		expect(out.results[1].text).toContain("Porque Deus amou");
+	});
+
+	it("skips unparseable refs but keeps positions for the parseable ones", async () => {
+		const http = { async fetch() { return new Response(JSON.stringify(batch([johnItem])), { status: 200 }); } };
+		const rc = { request: { url: "http://localhost/passages?refs=" + encodeURIComponent("lorem ipsum;João 3:16") } };
+		const out = (await def.routes.passages.handler(rc, makeCtx({ http }))) as any;
+		expect(out.results).toHaveLength(2);
+		expect(out.results[0].error).toBe("unrecognized");
+		expect(out.results[1].text).toContain("Porque Deus amou");
+	});
+
+	it("throws for a missing ?refs", async () => {
+		await expect(def.routes.passages.handler({ request: { url: "http://localhost/passages" } }, makeCtx())).rejects.toThrow(/refs/i);
+	});
+});
+
+describe("scan MCP tool — includeText option", () => {
+	const johnItem = {
+		version: "naa", book: "john", bookName: "John", chapter: 3,
+		verse: 16, verseEnd: 16, text: "Porque Deus amou o mundo...",
+		verses: ["Porque Deus amou o mundo..."], reference: "John 3:16",
+	};
+
+	it("returns coordinates only by default (no upstream call)", async () => {
+		let calls = 0;
+		const http = { async fetch() { calls++; return new Response("{}", { status: 200 }); } };
+		const out = (await def.routes.scan.handler({ input: { text: "João 3:16" } }, makeCtx({ http }))) as any;
+		expect(calls).toBe(0);
+		expect(out.matches[0].slug).toBe("john");
+		expect(out.matches[0].text).toBeUndefined();
+	});
+
+	it("includes verse text via a single batch call when includeText is true", async () => {
+		let calls = 0;
+		const http = { async fetch() { calls++; return new Response(JSON.stringify({ data: [johnItem], meta: { total: 1, resolved: 1, failed: 0 } }), { status: 200 }); } };
+		const out = (await def.routes.scan.handler({ input: { text: "Leia João 3:16 hoje", includeText: true } }, makeCtx({ http }))) as any;
+		expect(calls).toBe(1);
+		expect(out.matches[0].slug).toBe("john");
+		expect(out.matches[0].text).toContain("Porque Deus amou");
+	});
+});

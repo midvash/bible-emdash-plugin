@@ -37,17 +37,30 @@ export interface VerseResponse {
 		book: string;
 		bookName: string;
 		chapter: number;
-		verse: number;
-		verseEnd: number;
-		text: string;
+		// Absent on the API's whole-chapter payload; backfilled by
+		// normalizeVerseData so downstream code can always read them.
+		verse?: number;
+		verseEnd?: number;
+		text?: string;
 		verses: string[];
 	};
 	meta: {
 		reference: string;
 		total: number;
-		cached: boolean;
+		// The API's `meta` has no `cached` field — cache state is this plugin's
+		// own KV layer, surfaced separately by the route handler.
+		cached?: boolean;
 	};
 }
+
+/**
+ * A batch item from `GET /v1/passages`. Either a resolved verse/chapter
+ * payload (same `data` keys as {@link VerseResponse}, flattened) or a
+ * per-item error object — one bad ref never fails the whole batch.
+ */
+type PassageItem =
+	| (VerseResponse["data"] & { reference?: string; error?: undefined })
+	| { ref: string; error: string };
 
 export interface VersionsResponse {
 	data: Array<{
@@ -92,6 +105,39 @@ export type VerseResult =
 	| { ok: false; kind: "not-found" | "fetch-error" };
 
 /**
+ * Cache key for a parsed reference, shared by {@link fetchVerse} and
+ * {@link fetchPassages} so a batch pre-warm and a single hover hit the same
+ * KV entry. Chapter-only refs use `:0-0` as the verse segment.
+ */
+function verseCacheKey(version: string, slug: string, chapter: number, verseStart: number, verseEnd: number): string {
+	return `cache:verse:${version}:${slug}:${chapter}:${verseStart}-${verseEnd}`;
+}
+
+/**
+ * Normalize an upstream verse `data` payload to always carry `text`, `verse`
+ * and `verseEnd`.
+ *
+ * The API's whole-chapter endpoint (`/v1/{version}/{book}/{chapter}`) returns
+ * only `verses[]` — no `text`/`verse`/`verseEnd` — unlike the verse and range
+ * endpoints. A consumer reading `data.text` would get `undefined` for a
+ * chapter ref (the tooltip for "Salmos 23" rendered an error). The API was
+ * asked to make this shape consistent; until that ships (and old chapter
+ * responses can persist in the edge cache for up to a year), we backfill
+ * client-side: join `verses[]` into `text` and set `verse:1`/`verseEnd:len`.
+ * A payload that already has `text` is returned untouched.
+ */
+export function normalizeVerseData(data: VerseResponse["data"]): VerseResponse["data"] {
+	if (typeof data.text === "string" && data.text.length > 0) return data;
+	const verses = Array.isArray(data.verses) ? data.verses : [];
+	return {
+		...data,
+		text: verses.join(" "),
+		verse: data.verse ?? 1,
+		verseEnd: data.verseEnd ?? verses.length,
+	};
+}
+
+/**
  * Resolve a parsed reference to a verse, using KV cache when possible.
  *
  * Returns a {@link VerseResult} that distinguishes "verse doesn't exist"
@@ -107,7 +153,7 @@ export async function fetchVerse(
 ): Promise<VerseResult> {
 	const verseStart = ref.verse ?? 0;
 	const verseEnd = ref.verseEnd ?? 0;
-	const cacheKey = `cache:verse:${opts.version}:${ref.slug}:${ref.chapter}:${verseStart}-${verseEnd}`;
+	const cacheKey = verseCacheKey(opts.version, ref.slug, ref.chapter, verseStart, verseEnd);
 
 	if (opts.cacheEnabled) {
 		const cached = await kv.get<{ at: number; data: VerseResponse }>(cacheKey);
@@ -135,7 +181,8 @@ export async function fetchVerse(
 		});
 		if (res.status === 404) return { ok: false, kind: "not-found" };
 		if (!res.ok) return { ok: false, kind: "fetch-error" };
-		const data = (await res.json()) as VerseResponse;
+		const raw = (await res.json()) as VerseResponse;
+		const data: VerseResponse = { ...raw, data: normalizeVerseData(raw.data) };
 		if (opts.cacheEnabled) {
 			await kv.set(cacheKey, { at: Date.now(), data });
 		}
@@ -145,6 +192,97 @@ export async function fetchVerse(
 	} finally {
 		clearTimeout(timer);
 	}
+}
+
+/** Max refs per `/v1/passages` request (API-enforced); larger inputs partition. */
+const PASSAGES_BATCH_LIMIT = 50;
+
+/** Build the free-text ref token `/v1/passages` expects, e.g. `john 3:16-18`. */
+function passageRefToken(ref: ParsedReference): string {
+	if (ref.verse === undefined) return `${ref.slug} ${ref.chapter}`;
+	const range = ref.verseEnd && ref.verseEnd !== ref.verse ? `-${ref.verseEnd}` : "";
+	return `${ref.slug} ${ref.chapter}:${ref.verse}${range}`;
+}
+
+/**
+ * Resolve MANY references in one `GET /v1/passages` call, seeding the same KV
+ * cache keys {@link fetchVerse} reads — so a single per-page pre-warm turns
+ * every later hover into a cache hit. Results come back in input order; a KV
+ * hit for a ref is served without hitting the network, and only the misses go
+ * upstream (partitioned into ≤50-ref requests). A per-item upstream error maps
+ * to `not-found`; a failed batch request degrades all its misses to
+ * `fetch-error`. Never throws — degrade gracefully, like {@link fetchVerse}.
+ */
+export async function fetchPassages(
+	refs: ParsedReference[],
+	opts: FetchOptions,
+	kv: KVLike,
+	http: HttpLike,
+): Promise<VerseResult[]> {
+	const results = new Array<VerseResult | undefined>(refs.length);
+	const misses: Array<{ index: number; ref: ParsedReference }> = [];
+
+	// 1) Serve KV hits up front; collect the rest.
+	for (let i = 0; i < refs.length; i++) {
+		const ref = refs[i];
+		const key = verseCacheKey(opts.version, ref.slug, ref.chapter, ref.verse ?? 0, ref.verseEnd ?? 0);
+		if (opts.cacheEnabled) {
+			const cached = await kv.get<{ at: number; data: VerseResponse }>(key);
+			if (cached && Date.now() - cached.at < opts.cacheTtlSeconds * 1000) {
+				results[i] = { ok: true, data: cached.data };
+				continue;
+			}
+		}
+		misses.push({ index: i, ref });
+	}
+
+	// 2) Fetch the misses in ≤50-ref batches.
+	for (let start = 0; start < misses.length; start += PASSAGES_BATCH_LIMIT) {
+		const chunk = misses.slice(start, start + PASSAGES_BATCH_LIMIT);
+		const refsParam = chunk.map((m) => passageRefToken(m.ref)).join(",");
+		const url = `https://api.midvash.com/v1/passages?refs=${encodeURIComponent(refsParam)}&version=${encodeURIComponent(opts.version)}`;
+
+		const controller = new AbortController();
+		const timer = setTimeout(() => controller.abort(), opts.timeoutMs);
+		let items: PassageItem[] | null = null;
+		try {
+			const res = await http.fetch(url, { signal: controller.signal, headers: { Accept: "application/json" } });
+			if (res.ok) {
+				const body = (await res.json()) as { data: PassageItem[] };
+				items = Array.isArray(body.data) ? body.data : null;
+			}
+		} catch {
+			items = null;
+		} finally {
+			clearTimeout(timer);
+		}
+
+		for (let j = 0; j < chunk.length; j++) {
+			const { index, ref } = chunk[j];
+			const item = items?.[j];
+			if (!item) {
+				// Whole batch failed (network/timeout/5xx) or shape mismatch.
+				results[index] = { ok: false, kind: "fetch-error" };
+				continue;
+			}
+			if ("error" in item && item.error) {
+				results[index] = { ok: false, kind: "not-found" };
+				continue;
+			}
+			const data: VerseResponse = {
+				data: normalizeVerseData(item as VerseResponse["data"]),
+				meta: { reference: (item as { reference?: string }).reference ?? "", total: 0 },
+			};
+			if (opts.cacheEnabled) {
+				const key = verseCacheKey(opts.version, ref.slug, ref.chapter, ref.verse ?? 0, ref.verseEnd ?? 0);
+				await kv.set(key, { at: Date.now(), data });
+			}
+			results[index] = { ok: true, data };
+		}
+	}
+
+	// Any slot left unset means the batch produced no item for it.
+	return results.map((r) => r ?? { ok: false, kind: "fetch-error" });
 }
 
 /**

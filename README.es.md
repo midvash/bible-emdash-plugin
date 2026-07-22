@@ -152,6 +152,7 @@ Todas las rutas se sirven bajo `/_emdash/api/plugins/bible-by-midvash/`.
 | Ruta | Descripción |
 | --------------------- | ---------------------------------------- |
 | `GET /lookup?ref=...` | Resuelve una referencia (público, JSON, caché de 5 min en EmDash 0.30+) |
+| `GET /passages?refs=` | Resuelve varias refs (separadas por `;`) en una llamada (público, JSON) |
 | `GET /versions?lang=` | Lista las versiones disponibles (público, JSON, caché de 1 h en EmDash 0.30+) |
 | `GET /settings` | Lee la configuración (admin) |
 | `POST /settings/save` | Guarda la configuración (admin) |
@@ -161,7 +162,14 @@ El script + estilos del tooltip se entregan por el hook `page:fragments` (no por
 
 En EmDash **0.30+** la ruta `scan` también se expone como **tool MCP**: un agente
 de IA conectado al admin puede detectar referencias bíblicas en cualquier texto a
-través del endpoint MCP del CMS.
+través del endpoint MCP del CMS. Pasa `includeText: true` para recibir también el
+texto de cada versículo (resuelto en una sola llamada por lotes).
+
+**Rendimiento:** el cliente precalienta todas las referencias de la página en una
+sola llamada `/passages` cuando el navegador está inactivo, así el primer hover es
+instantáneo. Las referencias de capítulo completo (p. ej. `Salmo 23`) ahora también
+muestran su texto — el cliente une los versículos cuando la respuesta de capítulo
+de la API viene sin `text`.
 
 ## Identidad visual
 
