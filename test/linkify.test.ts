@@ -207,3 +207,32 @@ describe("linkifyHtml SEO attributes (SEO-B)", () => {
 		expect(out).not.toContain('target="_blank"');
 	});
 });
+
+describe("linkifyHtml raw-text elements", () => {
+	// <style>/<script> content is raw text, not markup. A literal "<a>" inside
+	// a CSS comment or a JS string must not open a skip scope — otherwise the
+	// rest of the document is never linkified.
+
+	it("ignores a tag-like token inside a <style> comment", () => {
+		const html =
+			"<html><head><style>/* the badge is an <a> since v0.4.0 */ .x{}</style></head>" +
+			"<body><article><p>João 3:16</p></article></body></html>";
+		expect(linkifyHtml(html, opts)).toContain('class="midvash-ref"');
+	});
+
+	it("ignores a tag-like token inside a <script> string", () => {
+		const html =
+			'<head><script>const s = "<nav>";</script></head><article><p>João 3:16</p></article>';
+		expect(linkifyHtml(html, opts)).toContain('class="midvash-ref"');
+	});
+
+	it("does not linkify references inside <script>", () => {
+		const html = '<script>const r = "João 3:16 <b>";</script><p>x</p>';
+		expect(linkifyHtml(html, opts)).not.toContain("midvash-ref");
+	});
+
+	it("ignores a '>' inside an HTML comment", () => {
+		const html = "<!-- a > b <nav> --><p>João 3:16</p>";
+		expect(linkifyHtml(html, opts)).toContain('class="midvash-ref"');
+	});
+});
