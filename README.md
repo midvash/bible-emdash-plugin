@@ -122,6 +122,7 @@ stored settings, so use whichever you prefer. Key settings:
 
 - **Language** — pt-BR / en / es (controls which book names are recognized **and the tooltip UI language**)
 - **Default version** — 38 translations across pt-BR / en / es (NAA, ARA, NVI, ACF, ESV, KJV, RVR1960, …), sourced from the live [Midvash API](https://api.midvash.com/v1/versions)
+- **Versions for other languages** — on multilingual sites, each page follows its locale (`Astro.currentLocale`): a page in the main language uses **Default version**, an English/Spanish/Portuguese page in another language uses its own version setting and links to that language on midvash.com
 - **CSS selectors** — where references are detected (default: `article`, `.prose`, `.post-content`, `main`)
 - **Tooltip theme** — auto / parchment (light) / warm night (dark) / sepia
 - **Colors & style** — off by default (references inherit your site's link styles); enable **Use custom colors** to override

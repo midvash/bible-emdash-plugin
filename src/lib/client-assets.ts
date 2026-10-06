@@ -17,6 +17,7 @@
 import { CLIENT_CSS, CLIENT_JS } from "../client/bundle.ts";
 import { buildClientPattern, buildNameToSlug } from "./pattern.ts";
 import { getClientStrings } from "./i18n.ts";
+import { resolvePageLanguage } from "./locale.ts";
 import type { Settings } from "./settings.ts";
 
 /** The settings fields that affect client rendering. */
@@ -24,6 +25,9 @@ export type ClientAssetSettings = Pick<
 	Settings,
 	| "language"
 	| "defaultVersion"
+	| "versionPtBr"
+	| "versionEn"
+	| "versionEs"
 	| "selectors"
 	| "theme"
 	| "showVersionBadge"
@@ -50,25 +54,30 @@ function cssSafe(value: string): string {
 	return String(value).replace(/[<>{};"'\\]/g, "");
 }
 
-/** Render the inline JS (with settings + i18n injected) and CSS for the client. */
-export function buildClientAssets(s: ClientAssetSettings): ClientAssets {
-	const { pattern, flags } = buildClientPattern(s.language);
+/**
+ * Render the inline JS (with settings + i18n injected) and CSS for the client.
+ * `locale` is the page's locale: on a multilingual site it picks the language
+ * and version for that page (see `resolvePageLanguage`).
+ */
+export function buildClientAssets(s: ClientAssetSettings, locale?: string | null): ClientAssets {
+	const { language, version } = resolvePageLanguage(s, locale);
+	const { pattern, flags } = buildClientPattern(language);
 	const clientSettings = {
 		enabled: true,
 		selectors: s.selectors,
 		theme: s.theme,
 		showVersionBadge: s.showVersionBadge,
 		showReadMore: s.showReadMore,
-		strings: getClientStrings(s.language),
+		strings: getClientStrings(language),
 		pattern,
 		patternFlags: flags,
 		// Issue #49 / SEO-A: the client-only fallback (when the SSR middleware
 		// isn't registered) builds real <a href> anchors. It needs language,
 		// defaultVersion, and a name→slug map to produce the same URL shape
 		// the SSR linkifier emits.
-		language: s.language,
-		defaultVersion: s.defaultVersion,
-		nameToSlug: buildNameToSlug(s.language),
+		language,
+		defaultVersion: version,
+		nameToSlug: buildNameToSlug(language),
 	};
 
 	const js = CLIENT_JS.replace("__SETTINGS__", JSON.stringify(clientSettings));

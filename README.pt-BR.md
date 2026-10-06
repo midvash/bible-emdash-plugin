@@ -125,6 +125,7 @@ settings, use a que preferir. Principais settings:
 
 - **Idioma** — pt-BR / en / es (define quais nomes de livros são reconhecidos **e o idioma da UI do tooltip**)
 - **Versão padrão** — 38 traduções em pt-BR / en / es (NAA, ARA, NVI, ACF, ESV, KJV, RVR1960, …), vindas da [Midvash API](https://api.midvash.com/v1/versions) ao vivo
+- **Versões para outros idiomas** — em sites multilíngues, cada página segue o próprio idioma (`Astro.currentLocale`): páginas no idioma principal usam a **Versão padrão**; páginas em inglês, espanhol ou português (quando não é o principal) usam a versão daquele idioma e linkam para o midvash.com nesse idioma
 - **Seletores CSS** — onde as referências são detectadas (default: `article`, `.prose`, `.post-content`, `main`)
 - **Tema do tooltip** — auto / pergaminho (claro) / noite quente (escuro) / sépia
 - **Cores e estilo** — desligado por padrão (as referências herdam o estilo de link do seu site); ligue **Usar cores customizadas** para sobrescrever

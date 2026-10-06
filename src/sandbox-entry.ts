@@ -30,6 +30,7 @@ import { findReferences, parseReference } from "./lib/parser.ts";
 import { buildReadMoreUrl, fetchVerse, fetchPassages, fetchVersions } from "./lib/midvash.ts";
 import type { VerseResult } from "./lib/midvash.ts";
 import { buildClientAssets } from "./lib/client-assets.ts";
+import { localeToLanguage } from "./lib/locale.ts";
 import {
 	DEFAULTS,
 	type Settings,
@@ -149,10 +150,10 @@ export default {
 		// these fragments into <head> / before </body> when the site layout uses
 		// its <EmDashHead> / <EmDashBodyEnd> components.
 		"page:fragments": {
-			handler: async (_event: unknown, ctx: PluginContext) => {
+			handler: async (event: { page?: { locale?: string | null } }, ctx: PluginContext) => {
 				const settings = await loadSettings(ctx);
 				if (!settings.enabled) return [];
-				const { js, css } = buildClientAssets(settings);
+				const { js, css } = buildClientAssets(settings, event?.page?.locale);
 				return [
 					{
 						kind: "html" as const,
@@ -176,8 +177,9 @@ export default {
 			public: true,
 			// EmDash ≥0.30 sets this Cache-Control on successful GET responses
 			// (public routes only). Short TTL on purpose: the client tooltip
-			// omits ?v=/&lang, so a defaultVersion/language change in the admin
-			// must reach visitors within minutes. Verse text itself never
+			// sends ?v=/&lang from the page's injected settings, so a
+			// defaultVersion/language change in the admin reaches visitors as
+			// soon as the page re-renders. Verse text itself never
 			// changes — stale-while-revalidate keeps repeat hovers instant.
 			cacheControl: "public, max-age=300, stale-while-revalidate=3600",
 			handler: async (routeCtx: any, ctx: PluginContext) => {
@@ -187,7 +189,7 @@ export default {
 
 				const settings = await loadSettings(ctx);
 				const version = url.searchParams.get("v") || settings.defaultVersion;
-				const language = (url.searchParams.get("lang") as Language) || settings.language;
+				const language = localeToLanguage(url.searchParams.get("lang")) ?? settings.language;
 
 				const parsed = parseReference(refRaw);
 				if (!parsed) throw new Error("Unrecognized reference");
@@ -225,7 +227,7 @@ export default {
 
 				const settings = await loadSettings(ctx);
 				const version = url.searchParams.get("v") || settings.defaultVersion;
-				const language = (url.searchParams.get("lang") as Language) || settings.language;
+				const language = localeToLanguage(url.searchParams.get("lang")) ?? settings.language;
 				if (!ctx.http) throw new Error("Network capability missing");
 
 				const tokens = refsRaw.split(";").map((t) => t.trim()).filter(Boolean);

@@ -43,6 +43,9 @@ export const CLIENT_JS = String.raw`
 	var LANG = SETTINGS.language || "pt-br";
 	var VERSION = SETTINGS.defaultVersion || "naa";
 	var NAME_TO_SLUG = SETTINGS.nameToSlug || {};
+	// The page's language + version, sent to /lookup and /passages so the
+	// tooltip text matches the page (multilingual sites).
+	var API_QUERY = "&lang=" + encodeURIComponent(LANG) + "&v=" + encodeURIComponent(VERSION);
 
 	function normalizeName(s) {
 		return String(s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -314,7 +317,7 @@ export const CLIENT_JS = String.raw`
 
 	function lookup(ref) {
 		if (SESSION_CACHE.has(ref)) return Promise.resolve(SESSION_CACHE.get(ref));
-		var url = API_PREFIX + "/lookup?ref=" + encodeURIComponent(ref);
+		var url = API_PREFIX + "/lookup?ref=" + encodeURIComponent(ref) + API_QUERY;
 		return fetch(url, { headers: { Accept: "application/json" } })
 			.then(function (r) { return r.ok ? r.json() : Promise.reject(r); })
 			.then(function (raw) {
@@ -356,7 +359,7 @@ export const CLIENT_JS = String.raw`
 			if (ref && !seen[ref] && /\d[:.]\d/.test(ref)) { seen[ref] = 1; refs.push(ref); }
 		}
 		if (!refs.length) return;
-		var url = API_PREFIX + "/passages?refs=" + encodeURIComponent(refs.join(";"));
+		var url = API_PREFIX + "/passages?refs=" + encodeURIComponent(refs.join(";")) + API_QUERY;
 		fetch(url, { headers: { Accept: "application/json" } })
 			.then(function (r) { return r.ok ? r.json() : Promise.reject(r); })
 			.then(function (raw) {
