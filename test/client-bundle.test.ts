@@ -749,3 +749,23 @@ describe("client bundle (page language on API calls)", () => {
 		expect(urls.some((u) => u.includes("/lookup") && u.includes("lang=en&v=nlt"))).toBe(true);
 	});
 });
+
+describe("client bundle (English URLs have no /en prefix)", () => {
+	it("builds English anchors and the version badge without /en", async () => {
+		document.body.innerHTML = "<article><p>John 3:16</p></article>";
+		(globalThis as any).fetch = vi.fn(async () => ({
+			ok: true,
+			json: async () => ({ data: { reference: "John 3:16", text: "For God so loved", version: "nlt" } }),
+		}) as any);
+		const { pattern, flags } = buildClientPattern("en");
+		loadClient({ language: "en", defaultVersion: "nlt", pattern, patternFlags: flags, nameToSlug: buildNameToSlug("en"), strings: getClientStrings("en") });
+		await tick();
+		const a = document.querySelector("article .midvash-ref") as HTMLAnchorElement;
+		expect(a.getAttribute("href")).toBe("https://midvash.com/nlt/john/3/16");
+		a.dispatchEvent(new Event("mouseover", { bubbles: true }));
+		await tick();
+		await tick();
+		const badges = [...document.querySelectorAll(".midvash-tooltip__badge")].map((b) => b.getAttribute("href"));
+		expect(badges).toContain("https://midvash.com/nlt");
+	});
+});

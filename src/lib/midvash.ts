@@ -346,6 +346,14 @@ export async function fetchVersions(
  * Build a public-facing midvash.com URL for a reference, used as the
  * "Ler mais" link in the tooltip footer.
  */
+/**
+ * Site root for a language. English is midvash.com's default locale and has no
+ * prefix (`/en/...` 301-redirects to the bare path); the others are prefixed.
+ */
+export function midvashBase(language: string): string {
+	return language === "en" ? "https://midvash.com" : `https://midvash.com/${language}`;
+}
+
 export function buildReadMoreUrl(ref: ParsedReference, version: string, language: string): string {
 	const lang = (language || "pt-br") as Language;
 	const slug = localizedSlug(ref.slug, lang);
@@ -355,5 +363,5 @@ export function buildReadMoreUrl(ref: ParsedReference, version: string, language
 			: ref.verseEnd && ref.verseEnd !== ref.verse
 				? `${ref.chapter}/${ref.verse}-${ref.verseEnd}`
 				: `${ref.chapter}/${ref.verse}`;
-	return `https://midvash.com/${lang}/${version}/${slug}/${versePath}`;
+	return `${midvashBase(lang)}/${version}/${slug}/${versePath}`;
 }

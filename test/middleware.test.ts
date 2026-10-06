@@ -66,7 +66,7 @@ describe("bibleLinkifier", () => {
 		const mw = bibleLinkifier({ language: "en", version: "niv" });
 		const res = await mw(context("http://site/post"), async () => htmlResponse("<p>John 3:16</p>"));
 		const html = await res.text();
-		expect(html).toContain("https://midvash.com/en/niv/john/3/16");
+		expect(html).toContain("https://midvash.com/niv/john/3/16");
 	});
 
 	it("falls back to pt-br/naa when settings are unset", async () => {
@@ -87,7 +87,7 @@ describe("bibleLinkifier per-page locale", () => {
 		settings.versionEn = "nlt";
 		const mw = bibleLinkifier();
 		const res = await mw(localeContext("http://site/post", "en"), async () => htmlResponse("<p>John 3:16</p>"));
-		expect(await res.text()).toContain("https://midvash.com/en/nlt/john/3/16");
+		expect(await res.text()).toContain("https://midvash.com/nlt/john/3/16");
 	});
 
 	it("links Spanish pages to the Spanish site and versionEs", async () => {
