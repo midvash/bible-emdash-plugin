@@ -52,7 +52,7 @@ const OPTS = { version: "naa", timeoutMs: 5000, cacheEnabled: true, cacheTtlSeco
 describe("buildReadMoreUrl", () => {
 	it("builds an English URL with the raw slug", () => {
 		const url = buildReadMoreUrl({ slug: "john", matchedName: "John", chapter: 3, verse: 16, verseEnd: 16 }, "niv", "en");
-		expect(url).toBe("https://midvash.com/en/niv/john/3/16");
+		expect(url).toBe("https://midvash.com/niv/john/3/16");
 	});
 
 	it("localizes the slug for pt-br", () => {
@@ -67,7 +67,7 @@ describe("buildReadMoreUrl", () => {
 
 	it("renders a verse range", () => {
 		const url = buildReadMoreUrl({ slug: "1-corinthians", matchedName: "1 Cor", chapter: 13, verse: 4, verseEnd: 7 }, "niv", "en");
-		expect(url).toBe("https://midvash.com/en/niv/1-corinthians/13/4-7");
+		expect(url).toBe("https://midvash.com/niv/1-corinthians/13/4-7");
 	});
 });
 

@@ -44,7 +44,7 @@ describe("linkifyHtml", () => {
 
 	it("uses the English slug in the href when language is en", () => {
 		const out = linkifyHtml("<p>1 Corinthians 13:4-7</p>", { language: "en", version: "niv" });
-		expect(out).toContain('href="https://midvash.com/en/niv/1-corinthians/13/4-7"');
+		expect(out).toContain('href="https://midvash.com/niv/1-corinthians/13/4-7"');
 	});
 });
 

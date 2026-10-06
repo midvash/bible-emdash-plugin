@@ -43,6 +43,8 @@ export const CLIENT_JS = String.raw`
 	var LANG = SETTINGS.language || "pt-br";
 	var VERSION = SETTINGS.defaultVersion || "naa";
 	var NAME_TO_SLUG = SETTINGS.nameToSlug || {};
+	// English is midvash.com's default locale: no /en prefix (it 301s).
+	var SITE_BASE = "https://midvash.com" + (LANG === "en" ? "" : "/" + LANG);
 	// The page's language + version, sent to /lookup and /passages so the
 	// tooltip text matches the page (multilingual sites).
 	var API_QUERY = "&lang=" + encodeURIComponent(LANG) + "&v=" + encodeURIComponent(VERSION);
@@ -78,7 +80,7 @@ export const CLIENT_JS = String.raw`
 			: (verseEnd && verseEnd !== verse)
 				? chapter + "/" + verse + "-" + verseEnd
 				: chapter + "/" + verse;
-		return "https://midvash.com/" + LANG + "/" + VERSION + "/" + localizedSlug(slug) + "/" + versePath;
+		return SITE_BASE + "/" + VERSION + "/" + localizedSlug(slug) + "/" + versePath;
 	}
 
 	function safeHttpUrl(u) {
@@ -235,7 +237,7 @@ export const CLIENT_JS = String.raw`
 		// SEO link distinct from the article-body anchor (different target,
 		// passes additional juice to the version's page).
 		var versionHref = versionSlug
-			? safeHttpUrl("https://midvash.com/" + LANG + "/" + versionSlug)
+			? safeHttpUrl(SITE_BASE + "/" + versionSlug)
 			: null;
 		var badge = SETTINGS.showVersionBadge && version && versionHref
 			? '<a class="midvash-tooltip__badge" href="' + escapeHtml(versionHref) +
