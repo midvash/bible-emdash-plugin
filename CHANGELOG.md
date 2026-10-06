@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.1
+
+### Patch Changes
+
+- [#86](https://github.com/midvash/bible-emdash-plugin/pull/86) [`36d4bda`](https://github.com/midvash/bible-emdash-plugin/commit/36d4bda70e94277fd6be967e945f224d12006c18) Thanks [@onetogregorio](https://github.com/onetogregorio)! - English links drop the `/en` prefix (`midvash.com/kjv/john/3/16`), matching midvash.com's canonical URLs. `/en/...` only 301-redirected there, so every English link paid a redirect hop.
+
 ## 0.8.0
 
 ### Minor Changes
