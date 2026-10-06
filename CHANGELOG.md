@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.1
+
+### Patch Changes
+
+- [#80](https://github.com/midvash/bible-emdash-plugin/pull/80) [`b7772eb`](https://github.com/midvash/bible-emdash-plugin/commit/b7772eb1de40e9df73554596cdd85cfa21f3fc0e) Thanks [@onetogregorio](https://github.com/onetogregorio)! - SSR linkifier: treat `<script>`/`<style>`/`<textarea>`/`<title>` content and HTML comments as raw text. A literal `<a>` inside the plugin's own tooltip CSS comment opened a skip scope that never closed, so no reference on the page was linkified server-side.
+
 ## 0.7.0
 
 ### Minor Changes
