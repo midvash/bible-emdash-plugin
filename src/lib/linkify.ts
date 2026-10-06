@@ -39,6 +39,12 @@ import { buildReadMoreUrl } from "./midvash.ts";
  * matches the client scanner's default `selectors` of `article`, `.prose`,
  * `.post-content`, `main`.
  */
+/**
+ * Elements whose content the HTML parser treats as raw text. Tag-like text
+ * inside them must not touch the skip stack.
+ */
+const RAW_TEXT_TAGS = new Set(["script", "style", "textarea", "title"]);
+
 const SKIP_TAGS = new Set([
 	// Already-anchored / code-ish content.
 	"a", "code", "pre", "script", "style", "kbd", "samp", "textarea",
@@ -221,6 +227,15 @@ export function linkifyHtml(html: string, opts: LinkifyOptions): string {
 		const text = html.slice(i, tagOpen);
 		out += skipStack.length > 0 ? text : transformText(text, opts);
 
+		// Comment — its body may contain `>` or tag-like text; copy it whole.
+		if (html.startsWith("<!--", tagOpen)) {
+			const close = html.indexOf("-->", tagOpen + 4);
+			const end = close === -1 ? len : close + 3;
+			out += html.slice(tagOpen, end);
+			i = end;
+			continue;
+		}
+
 		const tagEnd = findTagEnd(html, tagOpen);
 		if (tagEnd === -1) {
 			out += html.slice(tagOpen);
@@ -240,6 +255,17 @@ export function linkifyHtml(html: string, opts: LinkifyOptions): string {
 			const isClosing = tagMatch[1] === "/";
 			const tagName = tagMatch[2].toLowerCase();
 			const selfClosing = raw.endsWith("/>");
+			// Raw-text element: its content is not markup (a CSS comment or a JS
+			// string may hold "<a>"), so copy it verbatim up to the matching
+			// closing tag instead of tracking tags inside it.
+			if (!isClosing && !selfClosing && RAW_TEXT_TAGS.has(tagName)) {
+				const closeRe = new RegExp(`</${tagName}`, "gi");
+				closeRe.lastIndex = tagEnd + 1;
+				const end = closeRe.exec(html)?.index ?? len;
+				out += html.slice(tagEnd + 1, end);
+				i = end;
+				continue;
+			}
 			if (SKIP_TAGS.has(tagName)) {
 				if (isClosing) {
 					if (skipStack[skipStack.length - 1] === tagName) skipStack.pop();
