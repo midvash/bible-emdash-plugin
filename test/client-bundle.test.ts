@@ -726,3 +726,26 @@ describe("client bundle (batch prewarm — /passages)", () => {
 		expect(fetchMock.mock.calls.filter((c) => String(c[0]).includes("/passages")).length).toBe(0);
 	});
 });
+
+describe("client bundle (page language on API calls)", () => {
+	it("sends the page language and version to /passages and /lookup", async () => {
+		document.body.innerHTML =
+			'<article>' +
+			'<a class="midvash-ref" data-ref="John 3:16">John 3:16</a>' +
+			'<a class="midvash-ref" data-ref="Psalm 23">Psalm 23</a>' +
+			'</article>';
+		const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({ data: { results: [] } }) }) as any);
+		(globalThis as any).fetch = fetchMock;
+
+		loadClient({ language: "en", defaultVersion: "nlt" });
+		await tick();
+		document.querySelectorAll(".midvash-ref")[1].dispatchEvent(new Event("mouseover", { bubbles: true }));
+		await tick();
+
+		// Clients loaded by earlier tests still listen on document, so look for
+		// this instance's calls instead of taking the first match.
+		const urls = fetchMock.mock.calls.map((c: any[]) => String(c[0]));
+		expect(urls.some((u) => u.includes("/passages") && u.includes("lang=en&v=nlt"))).toBe(true);
+		expect(urls.some((u) => u.includes("/lookup") && u.includes("lang=en&v=nlt"))).toBe(true);
+	});
+});

@@ -37,6 +37,9 @@ export const DEFAULTS: BibleByMidvashSettings = {
 	enabled: ALL_DEFAULTS.enabled,
 	language: ALL_DEFAULTS.language,
 	defaultVersion: ALL_DEFAULTS.defaultVersion,
+	versionPtBr: ALL_DEFAULTS.versionPtBr,
+	versionEn: ALL_DEFAULTS.versionEn,
+	versionEs: ALL_DEFAULTS.versionEs,
 	selectors: ALL_DEFAULTS.selectors,
 	theme: ALL_DEFAULTS.theme,
 	useCustomColors: ALL_DEFAULTS.useCustomColors,
@@ -67,9 +70,13 @@ export interface InlineSnippets {
 
 /**
  * Resolve all settings from the plugin's KV store and return the JS+CSS
- * ready to inline. Falls back to defaults for missing keys.
+ * ready to inline. Falls back to defaults for missing keys. Pass the page's
+ * locale (`Astro.currentLocale`) on multilingual sites.
  */
-export async function getBibleByMidvashSnippets(getSetting: GetSetting): Promise<InlineSnippets> {
+export async function getBibleByMidvashSnippets(
+	getSetting: GetSetting,
+	locale?: string | null,
+): Promise<InlineSnippets> {
 	const resolved = { ...DEFAULTS };
 	for (const key of Object.keys(DEFAULTS) as Array<keyof BibleByMidvashSettings>) {
 		const v = await getSetting(PLUGIN_ID, key);
@@ -80,6 +87,6 @@ export async function getBibleByMidvashSnippets(getSetting: GetSetting): Promise
 		return { enabled: false, js: "", css: "" };
 	}
 
-	const { js, css } = buildClientAssets(resolved);
+	const { js, css } = buildClientAssets(resolved, locale);
 	return { enabled: true, js, css };
 }

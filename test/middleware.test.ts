@@ -77,3 +77,35 @@ describe("bibleLinkifier", () => {
 		expect(await res.text()).toContain("/pt-br/naa/");
 	});
 });
+
+describe("bibleLinkifier per-page locale", () => {
+	function localeContext(url: string, currentLocale: string | undefined) {
+		return { request: new Request(url), currentLocale } as never;
+	}
+
+	it("links English pages to the English site and versionEn", async () => {
+		settings.versionEn = "nlt";
+		const mw = bibleLinkifier();
+		const res = await mw(localeContext("http://site/post", "en"), async () => htmlResponse("<p>John 3:16</p>"));
+		expect(await res.text()).toContain("https://midvash.com/en/nlt/john/3/16");
+	});
+
+	it("links Spanish pages to the Spanish site and versionEs", async () => {
+		settings.versionEs = "ntv";
+		const mw = bibleLinkifier();
+		const res = await mw(localeContext("http://site/es/post", "es"), async () => htmlResponse("<p>Juan 3:16</p>"));
+		expect(await res.text()).toContain("https://midvash.com/es/ntv/");
+	});
+
+	it("keeps the main language and defaultVersion on main-language pages", async () => {
+		const mw = bibleLinkifier();
+		const res = await mw(localeContext("http://site/pt-br/post", "pt-br"), async () => htmlResponse("<p>João 3:16</p>"));
+		expect(await res.text()).toContain("https://midvash.com/pt-br/naa/joao/3/16");
+	});
+
+	it("an explicit language option still wins over the page locale", async () => {
+		const mw = bibleLinkifier({ language: "pt-br", version: "ara" });
+		const res = await mw(localeContext("http://site/post", "en"), async () => htmlResponse("<p>João 3:16</p>"));
+		expect(await res.text()).toContain("https://midvash.com/pt-br/ara/joao/3/16");
+	});
+});

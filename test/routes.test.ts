@@ -388,3 +388,22 @@ describe("scan MCP tool — includeText option", () => {
 		expect(out.matches[0].text).toContain("Porque Deus amou");
 	});
 });
+
+describe("page:fragments per-page locale", () => {
+	const kv = { "settings:language": "pt-br", "settings:defaultVersion": "nvt", "settings:versionEn": "nlt" };
+
+	it("renders English strings, language and versionEn on an English page", async () => {
+		const frags = await hooks["page:fragments"].handler({ page: { locale: "en" } }, makeCtx({ kv }));
+		const code = frags.find((f: any) => f.kind === "inline-script").code;
+		expect(code).toContain('"readMore":"Read more ↗"');
+		expect(code).toContain('"language":"en"');
+		expect(code).toContain('"defaultVersion":"nlt"');
+	});
+
+	it("keeps the main language and defaultVersion on a main-language page", async () => {
+		const frags = await hooks["page:fragments"].handler({ page: { locale: "pt-br" } }, makeCtx({ kv }));
+		const code = frags.find((f: any) => f.kind === "inline-script").code;
+		expect(code).toContain('"language":"pt-br"');
+		expect(code).toContain('"defaultVersion":"nvt"');
+	});
+});

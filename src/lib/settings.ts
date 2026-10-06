@@ -25,6 +25,10 @@ export interface Settings {
 	enabled: boolean;
 	language: Language;
 	defaultVersion: string;
+	/** Versions for pages in a language other than `language` (multilingual sites). */
+	versionPtBr: string;
+	versionEn: string;
+	versionEs: string;
 	selectors: string;
 	theme: "auto" | "light" | "dark" | "sepia";
 	/**
@@ -49,6 +53,9 @@ export const DEFAULTS: Settings = {
 	enabled: true,
 	language: "pt-br",
 	defaultVersion: "naa",
+	versionPtBr: "naa",
+	versionEn: "kjv",
+	versionEs: "rvr1960",
 	selectors: "article\n.prose\n.post-content\nmain",
 	theme: "auto",
 	useCustomColors: false,
@@ -68,6 +75,9 @@ export const CLIENT_SETTING_KEYS = [
 	"enabled",
 	"language",
 	"defaultVersion",
+	"versionPtBr",
+	"versionEn",
+	"versionEs",
 	"selectors",
 	"theme",
 	"useCustomColors",
@@ -159,6 +169,30 @@ export const SETTINGS_SCHEMA = {
 		description: "Versão da Bíblia usada nos tooltips e no link 'Ler mais'.",
 		options: VERSION_OPTIONS,
 		default: DEFAULTS.defaultVersion,
+	},
+	versionPtBr: {
+		type: "select",
+		label: "Versão nas páginas em português",
+		description:
+			"Sites multilíngues: usada nas páginas em português quando o idioma principal é outro.",
+		options: VERSION_OPTIONS,
+		default: DEFAULTS.versionPtBr,
+	},
+	versionEn: {
+		type: "select",
+		label: "Versão nas páginas em inglês",
+		description:
+			"Sites multilíngues: usada nas páginas em inglês quando o idioma principal é outro.",
+		options: VERSION_OPTIONS,
+		default: DEFAULTS.versionEn,
+	},
+	versionEs: {
+		type: "select",
+		label: "Versão nas páginas em espanhol",
+		description:
+			"Sites multilíngues: usada nas páginas em espanhol quando o idioma principal é outro.",
+		options: VERSION_OPTIONS,
+		default: DEFAULTS.versionEs,
 	},
 	selectors: {
 		type: "string",

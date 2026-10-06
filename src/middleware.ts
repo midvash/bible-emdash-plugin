@@ -19,13 +19,14 @@ import type { MiddlewareHandler } from "astro";
 
 import type { Language } from "./lib/books.ts";
 import { linkifyHtml } from "./lib/linkify.ts";
+import { resolvePageLanguage } from "./lib/locale.ts";
+import { DEFAULTS } from "./lib/settings.ts";
 
 interface BibleLinkifierOptions {
 	/**
-	 * Override the default language for sites that don't expose locale
-	 * information through `Astro.currentLocale`. Defaults to reading
-	 * the locale from the request and falling back to the plugin's
-	 * configured default language.
+	 * Force one language for every page. By default the language comes from
+	 * the page's `Astro.currentLocale`, falling back to the plugin's
+	 * configured language.
 	 */
 	language?: Language;
 	/** Override the version. Falls back to plugin settings. */
@@ -55,14 +56,22 @@ export function bibleLinkifier(options: BibleLinkifierOptions = {}): MiddlewareH
 		const enabled = (await getPluginSetting(PLUGIN_ID, "enabled")) as boolean | null;
 		if (enabled === false) return response;
 
-		const language =
-			options.language ??
-			((await getPluginSetting(PLUGIN_ID, "language")) as Language | null) ??
-			"pt-br";
-		const version =
-			options.version ??
-			((await getPluginSetting(PLUGIN_ID, "defaultVersion")) as string | null) ??
-			"naa";
+		// Explicit options win; otherwise the page's locale picks the language
+		// and version (multilingual sites), falling back to the main settings.
+		const setting = async <T>(key: string, fallback: T): Promise<T> =>
+			((await getPluginSetting(PLUGIN_ID, key)) as T | null) ?? fallback;
+		const page = resolvePageLanguage(
+			{
+				language: options.language ?? (await setting("language", DEFAULTS.language)),
+				defaultVersion: await setting("defaultVersion", DEFAULTS.defaultVersion),
+				versionPtBr: await setting("versionPtBr", DEFAULTS.versionPtBr),
+				versionEn: await setting("versionEn", DEFAULTS.versionEn),
+				versionEs: await setting("versionEs", DEFAULTS.versionEs),
+			},
+			options.language ? null : context.currentLocale,
+		);
+		const language = page.language;
+		const version = options.version ?? page.version;
 
 		const html = await response.text();
 		const transformed = linkifyHtml(html, { language, version });
