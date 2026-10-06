@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.0
+
+### Minor Changes
+
+- [#84](https://github.com/midvash/bible-emdash-plugin/pull/84) [`ae8e77a`](https://github.com/midvash/bible-emdash-plugin/commit/ae8e77a5abe18a3ed63d37aa109dd281631b5328) Thanks [@onetogregorio](https://github.com/onetogregorio)! - Multilingual sites: each page now follows its own locale. The SSR linkifier reads `Astro.currentLocale` and the injected client reads EmDash's `page.locale`, so an English page links to midvash.com/en and shows English tooltip strings, a Spanish page to /es, and so on. New settings `versionPtBr`, `versionEn` and `versionEs` pick the version for pages that aren't in the main `language` (main-language pages keep `defaultVersion`). The tooltip now sends the page's `lang` and `v` to `/lookup` and `/passages`, and those routes ignore an unsupported `lang`.
+
 ## 0.7.1
 
 ### Patch Changes

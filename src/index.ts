@@ -25,7 +25,7 @@ export interface BiblePluginOptions {
 export function biblePlugin(options: BiblePluginOptions = {}): PluginDescriptor {
 	return {
 		id: options.id ?? "bible-by-midvash",
-		version: "0.7.1",
+		version: "0.8.0",
 		format: "standard",
 		entrypoint: "@midvash/emdash-plugin-bible/sandbox",
 		options: {},
