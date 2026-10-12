@@ -326,6 +326,15 @@ describe("fetchPassages (batch via /v1/passages)", () => {
 		if (results[1].ok) expect(results[1].data.data.text).toBe("v1 v2");
 	});
 
+	it("carries the batch's copyright notice into each result's meta", async () => {
+		const { fetchPassages } = await import("../src/lib/midvash.ts");
+		const body = { ...batchEnvelope([johnItem]), meta: { ...batchEnvelope([johnItem]).meta, copyright: "Bíblia Livre (BLIVRE)" } };
+		const http = makeHttp(() => new Response(JSON.stringify(body), { status: 200 }));
+		const results = await fetchPassages([REFS[0]], OPTS, makeKV(), http);
+		expect(results[0].ok).toBe(true);
+		if (results[0].ok) expect(results[0].data.meta.copyright).toBe("Bíblia Livre (BLIVRE)");
+	});
+
 	it("seeds the same KV cache keys fetchVerse reads", async () => {
 		const { fetchPassages } = await import("../src/lib/midvash.ts");
 		const kv = makeKV();

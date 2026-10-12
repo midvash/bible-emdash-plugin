@@ -41,7 +41,7 @@ export const CLIENT_JS = String.raw`
 	// table.
 
 	var LANG = SETTINGS.language || "pt-br";
-	var VERSION = SETTINGS.defaultVersion || "naa";
+	var VERSION = SETTINGS.defaultVersion || "almeida-livre";
 	var NAME_TO_SLUG = SETTINGS.nameToSlug || {};
 	// English is midvash.com's default locale: no /en prefix (it 301s).
 	var SITE_BASE = "https://midvash.com" + (LANG === "en" ? "" : "/" + LANG);
@@ -230,7 +230,9 @@ export const CLIENT_JS = String.raw`
 	}
 
 	function renderTooltip(tip, payload) {
-		var version = (payload.version || "").toUpperCase();
+		// versionName is the short name ("ONBV" for the onbv-es slug); older
+		// servers only sent the slug.
+		var version = payload.version ? (payload.versionName || payload.version.toUpperCase()) : "";
 		var versionSlug = (payload.version || "").toLowerCase();
 		// Build the version index URL on midvash.com — same shape as the
 		// verse anchor, just truncated to /lang/version. Another in-document
@@ -258,6 +260,12 @@ export const CLIENT_JS = String.raw`
 			? '<a class="midvash-tooltip__link" href="' + escapeHtml(safeMore) +
 				'" target="_blank" rel="noopener">' + escapeHtml(STRINGS.readMore) + "</a>"
 			: "";
+		// The version's credit (title · license): CC BY versions require it
+		// next to the text. The full notice shows on hover.
+		var credit = payload.credit
+			? '<span class="midvash-tooltip__credit" title="' + escapeHtml(payload.copyright || payload.credit) + '">' +
+				escapeHtml(payload.credit) + "</span>"
+			: "";
 		tip.innerHTML =
 			'<header class="midvash-tooltip__header">' +
 				'<span class="midvash-tooltip__ref">' + ref + " " +
@@ -269,7 +277,7 @@ export const CLIENT_JS = String.raw`
 			// when it replaces "Carregando…". aria-atomic re-announces the
 			// whole body, not just the diff.
 			'<div class="midvash-tooltip__body" aria-live="polite" aria-atomic="true">' + text + "</div>" +
-			(more ? '<footer class="midvash-tooltip__footer">' + more + "</footer>" : "");
+			(credit || more ? '<footer class="midvash-tooltip__footer">' + credit + more + "</footer>" : "");
 	}
 
 	function renderError(tip, ref, kind) {
@@ -622,10 +630,20 @@ a.midvash-tooltip__badge:focus-visible {
 	border-top: 1px solid var(--m-border, #E6DFD0);
 	padding: 0.5rem 0.875rem;
 	display: flex;
+	align-items: baseline;
 	justify-content: flex-end;
+	gap: 0.75rem;
 	background: rgba(240, 206, 138, 0.08);
 }
+.midvash-tooltip__credit {
+	margin-right: auto;
+	color: var(--m-muted, #827B6E);
+	font-family: 'Figtree', system-ui, sans-serif;
+	font-size: 0.7rem;
+	line-height: 1.3;
+}
 .midvash-tooltip__link {
+	flex-shrink: 0;
 	color: var(--m-honey-deep, #B17027);
 	font-family: 'Figtree', system-ui, sans-serif;
 	font-size: 0.8rem;

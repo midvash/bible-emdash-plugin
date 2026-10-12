@@ -20,6 +20,7 @@
  */
 
 import type { Language } from "./books.ts";
+import { servedVersion } from "./versions.ts";
 
 export interface Settings {
 	enabled: boolean;
@@ -52,10 +53,10 @@ export interface Settings {
 export const DEFAULTS: Settings = {
 	enabled: true,
 	language: "pt-br",
-	defaultVersion: "naa",
-	versionPtBr: "naa",
+	defaultVersion: "almeida-livre",
+	versionPtBr: "almeida-livre",
 	versionEn: "kjv",
-	versionEs: "rvr1960",
+	versionEs: "rvr1909",
 	selectors: "article\n.prose\n.post-content\nmain",
 	theme: "auto",
 	useCustomColors: false,
@@ -90,54 +91,50 @@ export const CLIENT_SETTING_KEYS = [
 ] as const;
 
 /**
- * Versions offered in the admin "default version" select, grouped by language.
- * Curated from the live Midvash API (api.midvash.com/v1/versions) for the three
- * languages whose book names the plugin detects (pt-br / en / es). The API hosts
- * many more (86 across 33 languages); the complete live list is available via
+ * Versions offered in the admin version selects, grouped by language. Only
+ * versions the Midvash API serves: since October 2026 it serves openly
+ * licensed versions only (see `versions.ts`). Curated from
+ * api.midvash.com/v1/versions for the three languages whose book names the
+ * plugin detects (pt-br / en / es); the complete live list is available via
  * the plugin's own `/versions` route.
  */
 const VERSION_OPTIONS = [
-	// Portuguese-BR (20)
-	{ value: "naa", label: "NAA — Nova Almeida Atualizada" },
-	{ value: "ara", label: "ARA — Almeida Revista e Atualizada" },
-	{ value: "arc", label: "ARC — Almeida Revista e Corrigida" },
-	{ value: "acf", label: "ACF — Almeida Corrigida Fiel" },
-	{ value: "nvi", label: "NVI — Nova Versão Internacional" },
-	{ value: "nvt", label: "NVT — Nova Versão Transformadora" },
-	{ value: "ntlh", label: "NTLH — Nova Tradução na Linguagem de Hoje" },
-	{ value: "as21", label: "AS21 — Almeida Século 21" },
-	{ value: "jfaa", label: "JFAA — João Ferreira de Almeida Atualizada" },
-	{ value: "kja", label: "KJA — King James Atualizada" },
-	{ value: "kjf", label: "KJF — King James Fiel" },
-	{ value: "msgpt", label: "MSGPT — A Mensagem" },
-	{ value: "nbv", label: "NBV — Nova Bíblia Viva" },
-	{ value: "aa", label: "AA — Almeida e Atualizada" },
+	// Portuguese-BR (7)
 	{ value: "almeida-livre", label: "BL — Bíblia Livre (Almeida 1819)" },
-	{ value: "bpm", label: "BPM — Bíblia Portuguesa Mundial" },
+	{ value: "alm1911", label: "ALM1911 — Almeida 1911" },
 	{ value: "onbv", label: "ONBV — Open Nova Bíblia Viva" },
 	{ value: "nva", label: "NVA — Bíblia Nova Versão de Acesso Livre" },
-	{ value: "blpt", label: "BLPT — Bíblia Livre Para Todos" },
-	{ value: "tft", label: "TFT — Tradução para Tradutores" },
-	// English (12)
-	{ value: "esv", label: "ESV — English Standard Version" },
+	{ value: "bpm", label: "BPM — Bíblia Portuguesa Mundial" },
+	{ value: "blpt", label: "BLPT — Bíblia Livre Para Todos (só NT)" },
+	{ value: "tft", label: "TFT — Tradução para Tradutores (só NT)" },
+	// English (11)
 	{ value: "kjv", label: "KJV — King James Version" },
-	{ value: "niv", label: "NIV — New International Version" },
-	{ value: "nkjv", label: "NKJV — New King James Version" },
-	{ value: "nlt", label: "NLT — New Living Translation" },
-	{ value: "msg", label: "MSG — The Message" },
+	{ value: "bsb", label: "BSB — Berean Standard Bible" },
 	{ value: "web", label: "WEB — World English Bible" },
+	{ value: "lsv", label: "LSV — Literal Standard Version" },
 	{ value: "asv", label: "ASV — American Standard Version" },
+	{ value: "rv1885", label: "RV — Revised Version" },
+	{ value: "darby", label: "DARBY — Darby Translation" },
 	{ value: "ylt", label: "YLT — Young's Literal Translation" },
 	{ value: "dra", label: "DRA — Douay-Rheims American Edition" },
 	{ value: "bbe", label: "BBE — Bible in Basic English" },
 	{ value: "geneva1599", label: "GNV — Geneva Bible 1599" },
 	// Spanish (5)
-	{ value: "rvr1960", label: "RVR1960 — Reina-Valera 1960" },
-	{ value: "nvies", label: "NVI — Nueva Versión Internacional" },
-	{ value: "ntv", label: "NTV — Nueva Traducción Viviente" },
 	{ value: "rvr1909", label: "RVR1909 — Reina-Valera 1909" },
+	{ value: "onbv-es", label: "ONBV — Open Nueva Biblia Viva" },
+	{ value: "pdt", label: "PDT — Palabra de Dios para ti" },
 	{ value: "rvg", label: "RVG — Reina-Valera Gómez 2010" },
+	{ value: "sev", label: "SEV — Sagradas Escrituras 1569 (Biblia del Oso)" },
 ] as const;
+
+/** Short name of a version for the tooltip badge ("onbv-es" → "ONBV"). */
+export function versionName(slug: string): string {
+	const option = VERSION_OPTIONS.find((o) => o.value === slug);
+	return option ? option.label.split(" — ")[0] : String(slug).toUpperCase();
+}
+
+/** Settings that hold a version slug (migrated by `servedVersion` on read). */
+const VERSION_KEYS = new Set(["defaultVersion", "versionPtBr", "versionEn", "versionEs"]);
 
 /**
  * Admin / marketplace metadata for every setting. `default` references
@@ -308,6 +305,7 @@ function coerceValue(def: SchemaField, raw: unknown): unknown {
 /**
  * Validate and coerce one persisted setting against its schema field: type
  * checks, enum membership for selects, and min/max clamping for numbers.
+ * Version slugs the API no longer serves are migrated to their replacement.
  * Returns the coerced value, or `undefined` when the stored value can't be
  * salvaged (a wrong type, an unknown enum, a non-numeric number) so the caller
  * keeps the default. Used by both `loadSettings` here and the backend's
@@ -317,7 +315,11 @@ function coerceValue(def: SchemaField, raw: unknown): unknown {
 export function coerceSetting(key: string, raw: unknown): unknown {
 	if (raw === null || raw === undefined) return undefined;
 	const def = (SETTINGS_SCHEMA as Record<string, SchemaField>)[key];
-	return def ? coerceValue(def, raw) : undefined;
+	if (!def) return undefined;
+	// A version the API dropped (e.g. a stored "nvt") becomes the free one it
+	// serves instead, so old sites keep working without a trip to the admin.
+	const value = VERSION_KEYS.has(key) && typeof raw === "string" ? servedVersion(raw) : raw;
+	return coerceValue(def, value);
 }
 
 /**

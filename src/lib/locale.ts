@@ -11,6 +11,7 @@
 
 import type { Language } from "./books.ts";
 import type { Settings } from "./settings.ts";
+import { servedVersion } from "./versions.ts";
 
 /** Map a BCP-47-ish locale ("en", "en-US", "pt-BR", "es_MX") to a plugin language. */
 export function localeToLanguage(locale: string | null | undefined): Language | null {
@@ -35,7 +36,8 @@ const VERSION_KEY: Record<Language, "versionPtBr" | "versionEn" | "versionEs"> =
 /**
  * The language and Bible version for a page. Main-language pages use
  * `defaultVersion`; pages in another supported language use that language's
- * version setting.
+ * version setting. The middleware passes raw stored settings, so a version the
+ * API dropped is swapped for the one it serves here too.
  */
 export function resolvePageLanguage(
 	s: LanguageSettings,
@@ -43,5 +45,5 @@ export function resolvePageLanguage(
 ): { language: Language; version: string } {
 	const language = localeToLanguage(locale) ?? s.language;
 	const version = language === s.language ? s.defaultVersion : s[VERSION_KEY[language]];
-	return { language, version };
+	return { language, version: servedVersion(version) };
 }

@@ -53,6 +53,9 @@ export interface VerseResponse {
 		// True when the API truncated a whole-chapter `text` (via `?preview=N`);
 		// the tooltip appends an ellipsis and leans on the "read more" link.
 		truncated?: boolean;
+		// The version's copyright notice (title, holder, license). CC BY
+		// versions require it next to the text; the tooltip shows a credit line.
+		copyright?: string;
 	};
 }
 
@@ -264,11 +267,13 @@ export async function fetchPassages(
 		const controller = new AbortController();
 		const timer = setTimeout(() => controller.abort(), opts.timeoutMs);
 		let items: PassageItem[] | null = null;
+		let copyright: string | undefined;
 		try {
 			const res = await http.fetch(url, { signal: controller.signal, headers: { Accept: "application/json" } });
 			if (res.ok) {
-				const body = (await res.json()) as { data: PassageItem[] };
+				const body = (await res.json()) as { data: PassageItem[]; meta?: { copyright?: string } };
 				items = Array.isArray(body.data) ? body.data : null;
+				copyright = body.meta?.copyright;
 			}
 		} catch {
 			items = null;
@@ -290,7 +295,7 @@ export async function fetchPassages(
 			}
 			const data: VerseResponse = {
 				data: normalizeVerseData(item as VerseResponse["data"]),
-				meta: { reference: (item as { reference?: string }).reference ?? "", total: 0 },
+				meta: { reference: (item as { reference?: string }).reference ?? "", total: 0, copyright },
 			};
 			if (opts.cacheEnabled) {
 				const key = verseCacheKey(opts.version, ref.slug, ref.chapter, ref.verse ?? 0, ref.verseEnd ?? 0);

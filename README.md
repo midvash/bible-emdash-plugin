@@ -78,7 +78,7 @@ That's it. Both paths emit identical anchors:
 
 ```html
 <a class="midvash-ref"
-   href="https://midvash.com/pt-br/naa/joao/3/16"
+   href="https://midvash.com/pt-br/almeida-livre/joao/3/16"
    title="João 3:16"
    data-ref="João 3:16"
    rel="noopener">João 3:16</a>
@@ -121,7 +121,7 @@ an auto-generated **Configure** form as well — both UIs read and write the sam
 stored settings, so use whichever you prefer. Key settings:
 
 - **Language** — pt-BR / en / es (controls which book names are recognized **and the tooltip UI language**)
-- **Default version** — 38 translations across pt-BR / en / es (NAA, ARA, NVI, ACF, ESV, KJV, RVR1960, …), sourced from the live [Midvash API](https://api.midvash.com/v1/versions)
+- **Default version** — 23 openly licensed translations across pt-BR / en / es (Bíblia Livre, ONBV, KJV, BSB, WEB, RVR1909, …), the ones the live [Midvash API](https://api.midvash.com/v1/versions) serves. Since October 2026 the API no longer serves versions without an open license (NVT, NAA, NIV, NLT, NTV, RVR1960…); a site that still has one saved switches on its own to the free version the API serves in its place (NVT → ONBV, NLT → BSB, NTV → ONBV, NAA → Bíblia Livre). The tooltip badge names the version that was actually served, and the footer shows its credit (title and license), which CC BY versions require.
 - **Versions for other languages** — on multilingual sites, each page follows its locale (`Astro.currentLocale`): a page in the main language uses **Default version**, an English/Spanish/Portuguese page in another language uses its own version setting and links to that language on midvash.com
 - **CSS selectors** — where references are detected (default: `article`, `.prose`, `.post-content`, `main`)
 - **Tooltip theme** — auto / parchment (light) / warm night (dark) / sepia

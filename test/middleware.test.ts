@@ -17,7 +17,7 @@ beforeEach(() => {
 	for (const k of Object.keys(settings)) delete settings[k];
 	settings.enabled = true;
 	settings.language = "pt-br";
-	settings.defaultVersion = "naa";
+	settings.defaultVersion = "almeida-livre";
 });
 
 function htmlResponse(body: string) {
@@ -37,7 +37,7 @@ describe("bibleLinkifier", () => {
 		const res = await mw(context("http://site/post"), async () => htmlResponse("<p>João 3:16</p>"));
 		const html = await res.text();
 		expect(html).toContain('class="midvash-ref"');
-		expect(html).toContain("https://midvash.com/pt-br/naa/joao/3/16");
+		expect(html).toContain("https://midvash.com/pt-br/almeida-livre/joao/3/16");
 		expect(res.headers.get("content-length")).toBeNull(); // dropped after rewrite
 	});
 
@@ -63,18 +63,31 @@ describe("bibleLinkifier", () => {
 	});
 
 	it("honors explicit language/version options over settings", async () => {
-		const mw = bibleLinkifier({ language: "en", version: "niv" });
+		const mw = bibleLinkifier({ language: "en", version: "web" });
 		const res = await mw(context("http://site/post"), async () => htmlResponse("<p>John 3:16</p>"));
 		const html = await res.text();
-		expect(html).toContain("https://midvash.com/niv/john/3/16");
+		expect(html).toContain("https://midvash.com/web/john/3/16");
 	});
 
-	it("falls back to pt-br/naa when settings are unset", async () => {
+	it("falls back to pt-br/almeida-livre when settings are unset", async () => {
 		delete settings.language;
 		delete settings.defaultVersion;
 		const mw = bibleLinkifier();
 		const res = await mw(context("http://site/post"), async () => htmlResponse("<p>João 3:16</p>"));
-		expect(await res.text()).toContain("/pt-br/naa/");
+		expect(await res.text()).toContain("/pt-br/almeida-livre/");
+	});
+
+	it("links a stored version the API dropped to the free version it serves", async () => {
+		settings.defaultVersion = "nvt";
+		const mw = bibleLinkifier();
+		const res = await mw(context("http://site/post"), async () => htmlResponse("<p>João 3:16</p>"));
+		expect(await res.text()).toContain("https://midvash.com/pt-br/onbv/joao/3/16");
+	});
+
+	it("maps a dropped version passed as an option too", async () => {
+		const mw = bibleLinkifier({ language: "en", version: "niv" });
+		const res = await mw(context("http://site/post"), async () => htmlResponse("<p>John 3:16</p>"));
+		expect(await res.text()).toContain("https://midvash.com/bsb/john/3/16");
 	});
 });
 
@@ -84,28 +97,28 @@ describe("bibleLinkifier per-page locale", () => {
 	}
 
 	it("links English pages to the English site and versionEn", async () => {
-		settings.versionEn = "nlt";
+		settings.versionEn = "bsb";
 		const mw = bibleLinkifier();
 		const res = await mw(localeContext("http://site/post", "en"), async () => htmlResponse("<p>John 3:16</p>"));
-		expect(await res.text()).toContain("https://midvash.com/nlt/john/3/16");
+		expect(await res.text()).toContain("https://midvash.com/bsb/john/3/16");
 	});
 
 	it("links Spanish pages to the Spanish site and versionEs", async () => {
-		settings.versionEs = "ntv";
+		settings.versionEs = "onbv-es";
 		const mw = bibleLinkifier();
 		const res = await mw(localeContext("http://site/es/post", "es"), async () => htmlResponse("<p>Juan 3:16</p>"));
-		expect(await res.text()).toContain("https://midvash.com/es/ntv/");
+		expect(await res.text()).toContain("https://midvash.com/es/onbv-es/");
 	});
 
 	it("keeps the main language and defaultVersion on main-language pages", async () => {
 		const mw = bibleLinkifier();
 		const res = await mw(localeContext("http://site/pt-br/post", "pt-br"), async () => htmlResponse("<p>João 3:16</p>"));
-		expect(await res.text()).toContain("https://midvash.com/pt-br/naa/joao/3/16");
+		expect(await res.text()).toContain("https://midvash.com/pt-br/almeida-livre/joao/3/16");
 	});
 
 	it("an explicit language option still wins over the page locale", async () => {
-		const mw = bibleLinkifier({ language: "pt-br", version: "ara" });
+		const mw = bibleLinkifier({ language: "pt-br", version: "bpm" });
 		const res = await mw(localeContext("http://site/post", "en"), async () => htmlResponse("<p>João 3:16</p>"));
-		expect(await res.text()).toContain("https://midvash.com/pt-br/ara/joao/3/16");
+		expect(await res.text()).toContain("https://midvash.com/pt-br/bpm/joao/3/16");
 	});
 });

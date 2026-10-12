@@ -7,6 +7,7 @@ import {
 	coerceSetting,
 	loadSettings,
 } from "../src/lib/settings.ts";
+import { RETIRED_VERSIONS } from "../src/lib/versions.ts";
 
 type Field = { type: string; action_id: string; label: string; initial_value: unknown; [k: string]: unknown };
 
@@ -130,5 +131,41 @@ describe("coerceSetting (validation/coercion)", () => {
 		expect(coerceSetting("bogus", "x")).toBeUndefined();
 		expect(coerceSetting("language", null)).toBeUndefined();
 		expect(coerceSetting("language", undefined)).toBeUndefined();
+	});
+});
+
+describe("version settings (only versions the Midvash API serves)", () => {
+	const VERSION_KEYS = ["defaultVersion", "versionPtBr", "versionEn", "versionEs"] as const;
+
+	it("offers no version the API dropped", () => {
+		for (const key of VERSION_KEYS) {
+			for (const o of SETTINGS_SCHEMA[key].options) {
+				expect(RETIRED_VERSIONS[o.value], `${key}: ${o.value}`).toBeUndefined();
+			}
+		}
+	});
+
+	it("offers the free versions that replace NVT, NLT and NTV", () => {
+		const values = SETTINGS_SCHEMA.defaultVersion.options.map((o) => o.value);
+		expect(values).toEqual(expect.arrayContaining(["onbv", "bsb", "onbv-es"]));
+	});
+
+	it("defaults to versions the API serves", () => {
+		for (const key of VERSION_KEYS) {
+			expect(RETIRED_VERSIONS[DEFAULTS[key]], key).toBeUndefined();
+		}
+	});
+
+	it("migrates a stored dropped version to the one the API serves", () => {
+		expect(coerceSetting("defaultVersion", "nvt")).toBe("onbv");
+		expect(coerceSetting("versionEn", "nlt")).toBe("bsb");
+		expect(coerceSetting("versionEs", "ntv")).toBe("onbv-es");
+		expect(coerceSetting("versionPtBr", "naa")).toBe("almeida-livre");
+	});
+
+	it("loadSettings applies the migration", async () => {
+		const stored: Record<string, unknown> = { "settings:defaultVersion": "nvt" };
+		const s = await loadSettings(async (key) => stored[key] ?? null);
+		expect(s.defaultVersion).toBe("onbv");
 	});
 });

@@ -125,7 +125,7 @@ muestra un formulario **Configure** auto-generado — ambas UIs leen y escriben 
 misma configuración, usa la que prefieras. Ajustes principales:
 
 - **Idioma** — pt-BR / en / es (controla qué nombres de libros se reconocen **y el idioma de la interfaz del tooltip**)
-- **Versión por defecto** — 38 traducciones en pt-BR / en / es (NAA, ARA, NVI, ACF, ESV, KJV, RVR1960, …), desde la [Midvash API](https://api.midvash.com/v1/versions) en vivo
+- **Versión por defecto** — 23 traducciones de licencia libre en pt-BR / en / es (Bíblia Livre, ONBV, KJV, BSB, WEB, RVR1909, …), las que sirve la [Midvash API](https://api.midvash.com/v1/versions). Desde octubre de 2026 la API ya no sirve versiones sin licencia libre (NVT, NAA, NVI, NLT, NTV, RVR1960…); un sitio que todavía tenga una guardada pasa solo a la versión libre que la API sirve en su lugar (NVT → ONBV, NLT → BSB, NTV → ONBV, NAA → Bíblia Livre). La insignia del tooltip muestra la versión que llegó de verdad, y el pie muestra su crédito (título y licencia), que las versiones CC BY exigen.
 - **Versiones para otros idiomas** — en sitios multilingües, cada página sigue su propio idioma (`Astro.currentLocale`): las páginas en el idioma principal usan la **Versión predeterminada**; las páginas en inglés, español o portugués (cuando no es el principal) usan la versión de ese idioma y enlazan a midvash.com en ese idioma
 - **Selectores CSS** — dónde se detectan las referencias (por defecto: `article`, `.prose`, `.post-content`, `main`)
 - **Tema del tooltip** — auto / pergamino (claro) / noche cálida (oscuro) / sepia
