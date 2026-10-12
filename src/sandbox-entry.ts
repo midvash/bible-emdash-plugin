@@ -37,7 +37,9 @@ import {
 	buildAdminFields,
 	coerceSetting,
 	loadSettings as loadSettingsFromKv,
+	versionName,
 } from "./lib/settings.ts";
+import { creditLine, servedVersion } from "./lib/versions.ts";
 
 const SETTINGS_PREFIX = "settings:";
 
@@ -73,11 +75,19 @@ function toLookupPayload(
 		return { error: result.kind, reference, version };
 	}
 	const verse = result.data;
+	// Label and link the version the API actually served: it may swap a
+	// version it no longer serves for a free one (see versions.ts).
+	const served = verse.data.version || version;
 	return {
 		reference,
 		text: verse.data.text,
-		version,
-		readMoreUrl: buildReadMoreUrl(parsed, version, language),
+		version: served,
+		versionName: versionName(served),
+		readMoreUrl: buildReadMoreUrl(parsed, served, language),
+		// `credit` — one line (title · license) the tooltip shows under the
+		// text; `copyright` — the full notice, shown on hover.
+		credit: creditLine(verse.meta.copyright),
+		copyright: verse.meta.copyright,
 		// `truncated` — the API capped a whole-chapter preview; the client shows
 		// an ellipsis and leans on the read-more link.
 		truncated: verse.meta.truncated === true,
@@ -188,7 +198,8 @@ export default {
 				if (!refRaw) throw new Error("Missing ?ref");
 
 				const settings = await loadSettings(ctx);
-				const version = url.searchParams.get("v") || settings.defaultVersion;
+				// Pages cached before an upgrade may still send a dropped ?v=nvt.
+				const version = servedVersion(url.searchParams.get("v") || settings.defaultVersion);
 				const language = localeToLanguage(url.searchParams.get("lang")) ?? settings.language;
 
 				const parsed = parseReference(refRaw);
@@ -226,7 +237,8 @@ export default {
 				if (!refsRaw) throw new Error("Missing ?refs");
 
 				const settings = await loadSettings(ctx);
-				const version = url.searchParams.get("v") || settings.defaultVersion;
+				// Pages cached before an upgrade may still send a dropped ?v=nvt.
+				const version = servedVersion(url.searchParams.get("v") || settings.defaultVersion);
 				const language = localeToLanguage(url.searchParams.get("lang")) ?? settings.language;
 				if (!ctx.http) throw new Error("Network capability missing");
 

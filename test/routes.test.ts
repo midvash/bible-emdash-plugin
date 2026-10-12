@@ -36,7 +36,7 @@ function makeCtx(opts: { kv?: Record<string, unknown>; http?: unknown; noList?: 
 
 const VERSE: VerseResponse = {
 	data: {
-		version: "naa",
+		version: "almeida-livre",
 		book: "john",
 		bookName: "João",
 		chapter: 3,
@@ -92,7 +92,7 @@ describe("plugin:install hook", () => {
 		const ctx = makeCtx();
 		await hooks["plugin:install"].handler({}, ctx);
 		expect(await ctx.kv.get("settings:language")).toBe("pt-br");
-		expect(await ctx.kv.get("settings:defaultVersion")).toBe("naa");
+		expect(await ctx.kv.get("settings:defaultVersion")).toBe("almeida-livre");
 		expect(await ctx.kv.get("settings:cacheTtlSeconds")).toBe(2_592_000);
 	});
 
@@ -108,7 +108,7 @@ describe("loadSettings (via the settings route)", () => {
 		const ctx = makeCtx({ kv: { "settings:language": "en", "cache:verse:x": { junk: true } } });
 		const out = (await routes.settings.handler({}, ctx)) as any;
 		expect(out.language).toBe("en");
-		expect(out.defaultVersion).toBe("naa"); // default kept
+		expect(out.defaultVersion).toBe("almeida-livre"); // default kept
 		expect(out).not.toHaveProperty("verse:x");
 	});
 
@@ -138,7 +138,7 @@ describe("lookup route", () => {
 		const out = (await routes.lookup.handler(rc, ctx)) as any;
 		expect(out.text).toBe(VERSE.data.text);
 		expect(out.reference).toBe("João 3:16");
-		expect(out.readMoreUrl).toBe("https://midvash.com/pt-br/naa/joao/3/16");
+		expect(out.readMoreUrl).toBe("https://midvash.com/pt-br/almeida-livre/joao/3/16");
 	});
 
 	it("does not call request.json() (sandbox-safe — request has only url)", async () => {
@@ -173,6 +173,75 @@ describe("lookup route", () => {
 		const out = await routes.lookup.handler(rc, makeCtx({ http }));
 		expect(out.error).toBe("not-found");
 		expect(out.reference).toContain("99:99");
+	});
+});
+
+describe("lookup route — versions the API dropped (Oct 2026)", () => {
+	// Since Oct 2026 api.midvash.com only serves openly licensed versions. A
+	// request for a dropped one (NVT, NLT, NTV…) still returns 200, with the
+	// text of a free version and `data.version` naming it.
+	const ONBV_COPYRIGHT =
+		"Biblica® Open Nova Bíblia Viva™ (ONBV)\n© 2007, 2010 Biblica, Inc.\nLicença Creative Commons Atribuição-CompartilhaIgual 4.0 (CC BY-SA 4.0).";
+	const served = (version: string, copyright?: string) => ({
+		data: { ...VERSE.data, version },
+		meta: { reference: "John 3:16", total: 1, ...(copyright ? { copyright } : {}) },
+	});
+
+	it("asks the API for the version it serves when the stored one was dropped", async () => {
+		const urls: string[] = [];
+		const http = { async fetch(u: string) { urls.push(u); return new Response(JSON.stringify(served("onbv")), { status: 200 }); } };
+		const ctx = makeCtx({ http, kv: { "settings:defaultVersion": "nvt" } });
+		const rc = { request: { url: "http://localhost/lookup?ref=" + encodeURIComponent("João 3:16") } };
+		const out = (await routes.lookup.handler(rc, ctx)) as any;
+		expect(urls[0]).toContain("/v1/onbv/");
+		expect(out.version).toBe("onbv");
+		expect(out.readMoreUrl).toBe("https://midvash.com/pt-br/onbv/joao/3/16");
+	});
+
+	it("maps a dropped ?v= too (pages cached before the upgrade still send it)", async () => {
+		const urls: string[] = [];
+		const http = { async fetch(u: string) { urls.push(u); return new Response(JSON.stringify(served("bsb")), { status: 200 }); } };
+		const rc = { request: { url: "http://localhost/lookup?ref=" + encodeURIComponent("John 3:16") + "&lang=en&v=nlt" } };
+		const out = (await routes.lookup.handler(rc, makeCtx({ http }))) as any;
+		expect(urls[0]).toContain("/v1/bsb/");
+		expect(out.version).toBe("bsb");
+		expect(out.readMoreUrl).toBe("https://midvash.com/bsb/john/3/16");
+	});
+
+	it("labels the tooltip with the version the API actually served", async () => {
+		// Future-proof: if the API swaps a version the plugin doesn't know
+		// about yet, the badge and the read-more link must follow data.version.
+		const http = { async fetch() { return new Response(JSON.stringify(served("kjv")), { status: 200 }); } };
+		const rc = { request: { url: "http://localhost/lookup?ref=" + encodeURIComponent("John 3:16") + "&lang=en&v=web" } };
+		const out = (await routes.lookup.handler(rc, makeCtx({ http }))) as any;
+		expect(out.version).toBe("kjv");
+		expect(out.versionName).toBe("KJV");
+		expect(out.readMoreUrl).toBe("https://midvash.com/kjv/john/3/16");
+	});
+
+	it("names the version by its short name, not its slug", async () => {
+		const http = { async fetch() { return new Response(JSON.stringify(served("onbv-es")), { status: 200 }); } };
+		const rc = { request: { url: "http://localhost/lookup?ref=" + encodeURIComponent("Juan 3:16") + "&lang=es&v=onbv-es" } };
+		const out = (await routes.lookup.handler(rc, makeCtx({ http }))) as any;
+		expect(out.versionName).toBe("ONBV");
+	});
+
+	it("sends the version's credit along with the text", async () => {
+		const http = { async fetch() { return new Response(JSON.stringify(served("onbv", ONBV_COPYRIGHT)), { status: 200 }); } };
+		const rc = { request: { url: "http://localhost/lookup?ref=" + encodeURIComponent("João 3:16") + "&v=onbv" } };
+		const out = (await routes.lookup.handler(rc, makeCtx({ http }))) as any;
+		expect(out.credit).toBe("Biblica® Open Nova Bíblia Viva™ (ONBV) · CC BY-SA 4.0");
+		expect(out.copyright).toBe(ONBV_COPYRIGHT);
+	});
+
+	it("sends the credit from the batch envelope on /passages", async () => {
+		const item = { ...VERSE.data, version: "onbv", reference: "John 3:16" };
+		const body = { data: [item], meta: { total: 1, version: "onbv", resolved: 1, failed: 0, copyright: ONBV_COPYRIGHT } };
+		const http = { async fetch() { return new Response(JSON.stringify(body), { status: 200 }); } };
+		const rc = { request: { url: "http://localhost/passages?refs=" + encodeURIComponent("João 3:16") + "&v=nvt" } };
+		const out = (await def.routes.passages.handler(rc, makeCtx({ http }))) as any;
+		expect(out.results[0].version).toBe("onbv");
+		expect(out.results[0].credit).toBe("Biblica® Open Nova Bíblia Viva™ (ONBV) · CC BY-SA 4.0");
 	});
 });
 
@@ -306,15 +375,15 @@ describe("passages route (batch, EmDash ≥0.30 practices)", () => {
 	const meta = def.routes as Record<string, { public?: boolean; cacheControl?: string }>;
 	const batch = (items: unknown[]) => ({
 		data: items,
-		meta: { total: items.length, version: "naa", resolved: items.length, failed: 0 },
+		meta: { total: items.length, version: "almeida-livre", resolved: items.length, failed: 0 },
 	});
 	const johnItem = {
-		version: "naa", book: "john", bookName: "John", chapter: 3,
+		version: "almeida-livre", book: "john", bookName: "John", chapter: 3,
 		verse: 16, verseEnd: 16, text: "Porque Deus amou o mundo...",
 		verses: ["Porque Deus amou o mundo..."], reference: "John 3:16",
 	};
 	const psalmsChapter = {
-		version: "naa", book: "psalms", bookName: "Psalms", chapter: 23,
+		version: "almeida-livre", book: "psalms", bookName: "Psalms", chapter: 23,
 		verses: ["v1", "v2"], reference: "Psalms 23",
 	};
 
@@ -333,7 +402,7 @@ describe("passages route (batch, EmDash ≥0.30 practices)", () => {
 		expect(out.results).toHaveLength(2);
 		expect(out.results[0].text).toContain("Porque Deus amou");
 		expect(out.results[0].reference).toBe("João 3:16");
-		expect(out.results[0].readMoreUrl).toBe("https://midvash.com/pt-br/naa/joao/3/16");
+		expect(out.results[0].readMoreUrl).toBe("https://midvash.com/pt-br/almeida-livre/joao/3/16");
 		// Whole-chapter ref gets joined text (normalizeVerseData) instead of undefined.
 		expect(out.results[1].text).toBe("v1 v2");
 	});
@@ -365,7 +434,7 @@ describe("passages route (batch, EmDash ≥0.30 practices)", () => {
 
 describe("scan MCP tool — includeText option", () => {
 	const johnItem = {
-		version: "naa", book: "john", bookName: "John", chapter: 3,
+		version: "almeida-livre", book: "john", bookName: "John", chapter: 3,
 		verse: 16, verseEnd: 16, text: "Porque Deus amou o mundo...",
 		verses: ["Porque Deus amou o mundo..."], reference: "John 3:16",
 	};
@@ -397,13 +466,14 @@ describe("page:fragments per-page locale", () => {
 		const code = frags.find((f: any) => f.kind === "inline-script").code;
 		expect(code).toContain('"readMore":"Read more ↗"');
 		expect(code).toContain('"language":"en"');
-		expect(code).toContain('"defaultVersion":"nlt"');
+		// The stored NLT was dropped by the API; the page gets BSB, which it serves.
+		expect(code).toContain('"defaultVersion":"bsb"');
 	});
 
 	it("keeps the main language and defaultVersion on a main-language page", async () => {
 		const frags = await hooks["page:fragments"].handler({ page: { locale: "pt-br" } }, makeCtx({ kv }));
 		const code = frags.find((f: any) => f.kind === "inline-script").code;
 		expect(code).toContain('"language":"pt-br"');
-		expect(code).toContain('"defaultVersion":"nvt"');
+		expect(code).toContain('"defaultVersion":"onbv"');
 	});
 });

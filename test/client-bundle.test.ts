@@ -557,6 +557,78 @@ describe("client bundle (SEO — version badge is a link)", () => {
 	});
 });
 
+describe("client bundle (served version + credit — Oct 2026 API change)", () => {
+	function payloadWith(extra: Record<string, unknown>) {
+		return {
+			ok: true,
+			json: async () => ({
+				data: {
+					reference: "João 3:16",
+					text: "Porque Deus amou tanto o mundo...",
+					version: "onbv",
+					readMoreUrl: "https://midvash.com/pt-br/onbv/joao/3/16",
+					...extra,
+				},
+			}),
+		};
+	}
+
+	async function hover() {
+		document.body.innerHTML = "<article><p>João 3:16</p></article>";
+		loadClient();
+		document.querySelector(".midvash-ref")!.dispatchEvent(new Event("mouseover", { bubbles: true }));
+		await tick();
+		await tick();
+	}
+
+	it("labels the badge with the version's short name when the payload has one", async () => {
+		(globalThis as any).fetch = vi.fn(async () => payloadWith({ version: "onbv-es", versionName: "ONBV" }));
+		await hover();
+		const badge = document.querySelector(".midvash-tooltip__badge") as HTMLAnchorElement;
+		expect(badge.textContent).toBe("ONBV");
+		expect(badge.getAttribute("href")).toBe("https://midvash.com/pt-br/onbv-es");
+	});
+
+	it("shows the version's credit, with the full notice on hover", async () => {
+		(globalThis as any).fetch = vi.fn(async () =>
+			payloadWith({
+				credit: "Biblica® Open Nova Bíblia Viva™ (ONBV) · CC BY-SA 4.0",
+				copyright: "Biblica® Open Nova Bíblia Viva™ (ONBV)\n© 2007, 2010 Biblica, Inc.",
+			}),
+		);
+		await hover();
+		const credit = document.querySelector(".midvash-tooltip__credit");
+		expect(credit?.textContent).toBe("Biblica® Open Nova Bíblia Viva™ (ONBV) · CC BY-SA 4.0");
+		expect(credit?.getAttribute("title")).toContain("© 2007, 2010 Biblica, Inc.");
+	});
+
+	it("keeps the credit even when the read-more link is turned off", async () => {
+		(globalThis as any).fetch = vi.fn(async () => payloadWith({ credit: "Berean Standard Bible (BSB) · Public Domain" }));
+		document.body.innerHTML = "<article><p>João 3:16</p></article>";
+		loadClient({ showReadMore: false });
+		document.querySelector(".midvash-ref")!.dispatchEvent(new Event("mouseover", { bubbles: true }));
+		await tick();
+		await tick();
+		expect(document.querySelector(".midvash-tooltip__credit")?.textContent).toContain("Public Domain");
+		expect(document.querySelector(".midvash-tooltip__link")).toBeNull();
+	});
+
+	it("escapes the credit (it comes over the wire)", async () => {
+		(globalThis as any).fetch = vi.fn(async () =>
+			payloadWith({ credit: '<img src=x onerror="alert(1)">', copyright: '"><img src=y>' }),
+		);
+		await hover();
+		const tip = document.querySelector(".midvash-tooltip")!;
+		expect(tip.querySelector("img")).toBeNull();
+		expect(tip.querySelector(".midvash-tooltip__credit")?.textContent).toContain("<img");
+	});
+
+	it("renders no credit element when the payload has none", async () => {
+		await hover();
+		expect(document.querySelector(".midvash-tooltip__credit")).toBeNull();
+	});
+});
+
 describe("client bundle (inline-script </ escape regression — production hotfix)", () => {
 	// Reproduces the failure observed at https://samaragregorio.com.br/.
 	// EmDash/Astro escape every literal `</` in inline script content to `<\/`

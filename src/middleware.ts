@@ -21,6 +21,7 @@ import type { Language } from "./lib/books.ts";
 import { linkifyHtml } from "./lib/linkify.ts";
 import { resolvePageLanguage } from "./lib/locale.ts";
 import { DEFAULTS } from "./lib/settings.ts";
+import { servedVersion } from "./lib/versions.ts";
 
 interface BibleLinkifierOptions {
 	/**
@@ -71,7 +72,7 @@ export function bibleLinkifier(options: BibleLinkifierOptions = {}): MiddlewareH
 			options.language ? null : context.currentLocale,
 		);
 		const language = page.language;
-		const version = options.version ?? page.version;
+		const version = options.version ? servedVersion(options.version) : page.version;
 
 		const html = await response.text();
 		const transformed = linkifyHtml(html, { language, version });

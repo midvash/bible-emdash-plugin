@@ -24,7 +24,7 @@ a plugin bug cleanly and how to close the loop after a fix ships.
      --label "bug,from:<this-repo-name>" \
      --body "Plugin version: <x.y.z>
    Install mode: trusted
-   Language: pt-br   Default version: naa
+   Language: pt-br   Default version: almeida-livre
    Input: <exact input>
    Expected: <...>
    Actual: <...>"
