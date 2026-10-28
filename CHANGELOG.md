@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.1
+
+### Patch Changes
+
+- [#94](https://github.com/midvash/bible-emdash-plugin/pull/94) [`f8da39b`](https://github.com/midvash/bible-emdash-plugin/commit/f8da39b6c10db7310584d81d4c575ef805705129) Thanks [@onetogregorio](https://github.com/onetogregorio)! - Migra o tooling pro emdash 1.x: a validação e o bundle do marketplace agora usam o `@emdash-cms/plugin-cli` (`emdash-plugin bundle`) com o manifesto `emdash-plugin.jsonc`, o backend passa de `src/sandbox-entry.ts` pra `src/plugin.ts` (o export `./sandbox` continua igual) e o `zod` de desenvolvimento fica fixo na versão do emdash.
+
+- [#92](https://github.com/midvash/bible-emdash-plugin/pull/92) [`e268782`](https://github.com/midvash/bible-emdash-plugin/commit/e26878288ec196465c58db4d09a0563ee44e1e50) Thanks [@onetogregorio](https://github.com/onetogregorio)! - Tooltip no longer disappears while the pointer travels from the reference to "Read more". An invisible bridge now fills the gap between the reference and the tooltip, the hide delay went from 200ms to 350ms, and the tooltip is never hidden while the pointer is over it. The reference's native `title` is parked while the tooltip is open, so the browser no longer shows a second tooltip on top of ours.
+
 ## 0.9.0
 
 ### Minor Changes
