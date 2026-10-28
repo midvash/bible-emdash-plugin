@@ -32,6 +32,14 @@ export const CLIENT_JS = String.raw`
 	var ACTIVE_TOOLTIP = null;
 	var ACTIVE_TRIGGER = null;
 	var HIDE_TIMER = null;
+	// Invisible strip that fills the gap between the reference and the
+	// tooltip, so the pointer never "leaves" while crossing it.
+	var ACTIVE_BRIDGE = null;
+	// Long enough to travel from the reference to "Read more" at a slow,
+	// real mouse speed (150-200ms lost the tooltip midway).
+	var HIDE_DELAY = 350;
+	// Last pointer position (viewport coords), for the safe zone below.
+	var POINTER = null;
 
 	// --- URL building (client-only fallback — issue #49 / SEO-A) -----------
 	// When the SSR middleware isn't registered, the client has to produce
@@ -193,6 +201,14 @@ export const CLIENT_JS = String.raw`
 		el.addEventListener("mouseleave", scheduleHide);
 		document.body.appendChild(el);
 		ACTIVE_TOOLTIP = el;
+		var bridge = document.createElement("div");
+		bridge.className = "midvash-tooltip-bridge";
+		bridge.setAttribute("aria-hidden", "true");
+		bridge.style.display = "none";
+		bridge.addEventListener("mouseenter", function () { clearTimeout(HIDE_TIMER); });
+		bridge.addEventListener("mouseleave", scheduleHide);
+		document.body.appendChild(bridge);
+		ACTIVE_BRIDGE = bridge;
 		return el;
 	}
 
@@ -200,6 +216,7 @@ export const CLIENT_JS = String.raw`
 		var r = target.getBoundingClientRect();
 		var tipRect = tip.getBoundingClientRect();
 		var top = window.scrollY + r.bottom + 8;
+		var above = false;
 		var left = window.scrollX + r.left;
 		if (left + tipRect.width > window.scrollX + window.innerWidth - 8) {
 			left = window.scrollX + window.innerWidth - tipRect.width - 8;
@@ -208,9 +225,44 @@ export const CLIENT_JS = String.raw`
 		// Flip above if not enough space below
 		if (r.bottom + tipRect.height + 16 > window.innerHeight) {
 			top = window.scrollY + r.top - tipRect.height - 8;
+			above = true;
 		}
 		tip.style.top = top + "px";
 		tip.style.left = left + "px";
+		positionBridge(r, above, top, left, tipRect);
+	}
+
+	function positionBridge(r, above, tipTop, tipLeft, tipRect) {
+		if (!ACTIVE_BRIDGE) return;
+		// Spans the gap vertically and both the reference and the tooltip
+		// horizontally, so a diagonal path toward "Read more" stays inside.
+		var refTop = window.scrollY + r.top;
+		var refBottom = window.scrollY + r.bottom;
+		var bridgeTop = above ? tipTop + tipRect.height : refBottom;
+		var bridgeBottom = above ? refTop : tipTop;
+		var bridgeLeft = Math.min(window.scrollX + r.left, tipLeft);
+		var bridgeRight = Math.max(window.scrollX + r.right, tipLeft + tipRect.width);
+		ACTIVE_BRIDGE.style.top = bridgeTop + "px";
+		ACTIVE_BRIDGE.style.left = bridgeLeft + "px";
+		ACTIVE_BRIDGE.style.width = Math.max(0, bridgeRight - bridgeLeft) + "px";
+		ACTIVE_BRIDGE.style.height = Math.max(0, bridgeBottom - bridgeTop) + "px";
+		ACTIVE_BRIDGE.style.display = "block";
+	}
+
+	// The reference keeps title="<ref>" for crawlers, but the browser's
+	// native tooltip would pop up over ours. Park it while ours is active.
+	function stashTitle(el) {
+		var title = el.getAttribute("title");
+		if (title === null) return;
+		el.setAttribute("data-midvash-title", title);
+		el.removeAttribute("title");
+	}
+
+	function restoreTitle(el) {
+		var title = el.getAttribute("data-midvash-title");
+		if (title === null) return;
+		el.setAttribute("title", title);
+		el.removeAttribute("data-midvash-title");
 	}
 
 	function escapeHtml(s) {
@@ -307,16 +359,46 @@ export const CLIENT_JS = String.raw`
 
 	function hideTooltip() {
 		if (ACTIVE_TOOLTIP) ACTIVE_TOOLTIP.style.display = "none";
+		if (ACTIVE_BRIDGE) ACTIVE_BRIDGE.style.display = "none";
 		// Drop the aria link so the reference isn't described by a hidden tooltip.
 		if (ACTIVE_TRIGGER) {
 			ACTIVE_TRIGGER.removeAttribute("aria-describedby");
+			restoreTitle(ACTIVE_TRIGGER);
 			ACTIVE_TRIGGER = null;
 		}
 	}
 
+	function isHovered(el) {
+		try { return !!el && el.matches(":hover"); } catch (e) { return false; }
+	}
+
+	// The box that spans the reference and the tooltip. A diagonal path to
+	// "Read more" can run along the reference's own line of text for a while
+	// before it reaches the gap; inside this box the pointer is still on its
+	// way, so the tooltip stays. Checked by geometry, not by an overlay, so
+	// the surrounding text stays clickable.
+	function pointerInSafeZone() {
+		if (!POINTER || !ACTIVE_TRIGGER || !tooltipIsVisible()) return false;
+		var r = ACTIVE_TRIGGER.getBoundingClientRect();
+		var t = ACTIVE_TOOLTIP.getBoundingClientRect();
+		var left = Math.min(r.left, t.left);
+		var right = Math.max(r.right, t.right);
+		var top = Math.min(r.top, t.top);
+		var bottom = Math.max(r.bottom, t.bottom);
+		return POINTER.x >= left && POINTER.x <= right && POINTER.y >= top && POINTER.y <= bottom;
+	}
+
 	function scheduleHide() {
 		clearTimeout(HIDE_TIMER);
-		HIDE_TIMER = setTimeout(hideTooltip, 200);
+		HIDE_TIMER = setTimeout(function () {
+			// Never hide from under the pointer: a mouseleave can arrive late
+			// or out of order while crossing into the tooltip.
+			if (isHovered(ACTIVE_TOOLTIP) || isHovered(ACTIVE_BRIDGE) || isHovered(ACTIVE_TRIGGER)) return;
+			// Still between the reference and the tooltip: check again later
+			// (leaving the box fires no event we could wait for).
+			if (pointerInSafeZone()) { scheduleHide(); return; }
+			hideTooltip();
+		}, HIDE_DELAY);
 	}
 
 	function tooltipIsVisible() {
@@ -395,8 +477,10 @@ export const CLIENT_JS = String.raw`
 		// verse text; move the link if switching from a previous reference.
 		if (ACTIVE_TRIGGER && ACTIVE_TRIGGER !== target) {
 			ACTIVE_TRIGGER.removeAttribute("aria-describedby");
+			restoreTitle(ACTIVE_TRIGGER);
 		}
 		ACTIVE_TRIGGER = target;
+		stashTitle(target);
 		target.setAttribute("aria-describedby", TOOLTIP_ID);
 		renderLoading(tip, ref);
 		tip.style.display = "block";
@@ -431,6 +515,9 @@ export const CLIENT_JS = String.raw`
 	}
 
 	function attachListeners() {
+		document.addEventListener("mousemove", function (e) {
+			POINTER = { x: e.clientX, y: e.clientY };
+		}, { passive: true });
 		document.addEventListener("mouseover", function (e) {
 			var t = e.target.closest && e.target.closest(".midvash-ref");
 			if (t) showFor(t);
@@ -573,6 +660,11 @@ export const CLIENT_CSS = String.raw`
 	box-shadow: 0 12px 32px rgba(48, 40, 29, 0.18), 0 2px 6px rgba(48, 40, 29, 0.08);
 	font-family: 'Literata', Georgia, 'Times New Roman', serif;
 	animation: midvash-fade-in 0.12s ease-out;
+}
+.midvash-tooltip-bridge {
+	position: absolute;
+	z-index: 9998;
+	background: transparent;
 }
 @keyframes midvash-fade-in {
 	from { opacity: 0; transform: translateY(-4px); }
