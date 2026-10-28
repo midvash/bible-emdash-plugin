@@ -1,7 +1,7 @@
 # Agent playbook — consuming sites (reporter side)
 
 Drop this into the agent instructions (`AGENTS.md` / `CLAUDE.md`) of each site
-that uses `@midvash/emdash-plugin-bible`. It tells the site's agent how to report
+that uses `@midvash/bible-emdash-plugin`. It tells the site's agent how to report
 a plugin bug cleanly and how to close the loop after a fix ships.
 
 ## When you suspect a Bible-plugin bug
@@ -10,16 +10,16 @@ a plugin bug cleanly and how to close the loop after a fix ships.
    (language, default version, selectors). Reproduce with the smallest possible
    input.
 2. **Capture the essentials:**
-   - Plugin version: `npm ls @midvash/emdash-plugin-bible`
+   - Plugin version: `npm ls @midvash/bible-emdash-plugin`
    - The **exact input** (a reference string, text, or HTML fragment)
    - **Expected vs actual** output
    - Install mode (trusted vs sandboxed), configured language + version
 3. **Dedupe**, then file against the template:
    ```bash
-   gh issue list --repo midvash/emdash-plugin-bible --state all \
+   gh issue list --repo midvash/bible-emdash-plugin --state all \
      --search "<keywords of the bug>"
 
-   gh issue create --repo midvash/emdash-plugin-bible \
+   gh issue create --repo midvash/bible-emdash-plugin \
      --title "<concise, specific title>" \
      --label "bug,from:<this-repo-name>" \
      --body "Plugin version: <x.y.z>
@@ -33,7 +33,7 @@ a plugin bug cleanly and how to close the loop after a fix ships.
 
 ## After a fix is released
 
-- Renovate opens a bump PR for `@midvash/emdash-plugin-bible`. Patch bumps
+- Renovate opens a bump PR for `@midvash/bible-emdash-plugin`. Patch bumps
   auto-merge; review minor/major (pre-1.0 minors may break).
 - Once bumped, **verify the original repro is fixed** on this site.
 - Comment the result on the upstream issue and let the maintainer close it

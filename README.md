@@ -121,7 +121,7 @@ an auto-generated **Configure** form as well — both UIs read and write the sam
 stored settings, so use whichever you prefer. Key settings:
 
 - **Language** — pt-BR / en / es (controls which book names are recognized **and the tooltip UI language**)
-- **Default version** — 23 openly licensed translations across pt-BR / en / es (Bíblia Livre, ONBV, KJV, BSB, WEB, RVR1909, …), the ones the live [Midvash API](https://api.midvash.com/v1/versions) serves. Since October 2026 the API no longer serves versions without an open license (NVT, NAA, NIV, NLT, NTV, RVR1960…); a site that still has one saved switches on its own to the free version the API serves in its place (NVT → ONBV, NLT → BSB, NTV → ONBV, NAA → Bíblia Livre). The tooltip badge names the version that was actually served, and the footer shows its credit (title and license), which CC BY versions require.
+- **Default version** — any openly licensed translation in pt-BR / en / es (Bíblia Livre, ONBV, KJV, BSB, WEB, RVR1909, …), the ones the live [Midvash API](https://api.midvash.com/v1/versions) serves. Since October 2026 the API no longer serves versions without an open license (NVT, NAA, NIV, NLT, NTV, RVR1960…); a site that still has one saved switches on its own to the free version the API serves in its place (NVT → ONBV, NLT → BSB, NTV → ONBV, NAA → Bíblia Livre). The tooltip badge names the version that was actually served, and the footer shows its credit (title and license), which CC BY versions require.
 - **Versions for other languages** — on multilingual sites, each page follows its locale (`Astro.currentLocale`): a page in the main language uses **Default version**, an English/Spanish/Portuguese page in another language uses its own version setting and links to that language on midvash.com
 - **CSS selectors** — where references are detected (default: `article`, `.prose`, `.post-content`, `main`)
 - **Tooltip theme** — auto / parchment (light) / warm night (dark) / sepia
@@ -208,18 +208,19 @@ npm run bundle            # build + produce dist/<id>-<version>.tar.gz
 
 ## The Midvash ecosystem
 
-Part of [**Midvash**](https://midvash.com) — a free Bible reading & study platform. Everything is open and interlinks:
+Part of [**Midvash**](https://midvash.com) — a daily devotional with the depth of Bible study. Everything is open and interlinks:
 
 | | |
 |---|---|
 | 📖 **Reader (web)** | [midvash.com](https://midvash.com) — 9 languages |
-| 📱 **iOS app** | [midvash.app/ios](https://midvash.app/ios) |
+| 📱 **iOS app** | [App Store](https://apps.apple.com/app/id6775930176) |
+| 📱 **Android app** | [Google Play](https://play.google.com/store/apps/details?id=com.midvash.mobile) |
 | 🔌 **API** | [api.midvash.com](https://api.midvash.com) · [`bible-api`](https://github.com/midvash/bible-api) |
 | 🤖 **MCP server** | [mcp.midvash.com](https://mcp.midvash.com) · [`bible-mcp`](https://github.com/midvash/bible-mcp) |
-| 🧩 **WordPress plugin** | [midvash.app/wordpress-plugin](https://midvash.app/wordpress-plugin) · [`bible-wordpress-plugin`](https://github.com/midvash/bible-wordpress-plugin) |
-| 🧩 **EmDash plugin** | [midvash.app/emdash-plugin](https://midvash.app/emdash-plugin) · [`emdash-plugin-bible`](https://github.com/midvash/emdash-plugin-bible) |
-| 🌐 **Chrome extension** | [midvash.app/chrome-extension](https://midvash.app/chrome-extension) · [`bible-chrome-extension`](https://github.com/midvash/bible-chrome-extension) |
+| 🧩 **WordPress plugin** | [midvash.com/wordpress-plugin](https://midvash.com/wordpress-plugin) · [`bible-wordpress-plugin`](https://github.com/midvash/bible-wordpress-plugin) |
+| 🧩 **EmDash plugin** | [midvash.com/emdash-plugin](https://midvash.com/emdash-plugin) · [`bible-emdash-plugin`](https://github.com/midvash/bible-emdash-plugin) |
+| 🌐 **Chrome extension** | [midvash.com/chrome-extension](https://midvash.com/chrome-extension) · [`bible-chrome-extension`](https://github.com/midvash/bible-chrome-extension) |
 | 📦 **Open data** | [`bible-data`](https://github.com/midvash/bible-data) · [`bible-data-js`](https://github.com/midvash/bible-data-js) · [`bible-cross-references`](https://github.com/midvash/bible-cross-references) |
 
-<sub>Free & open, built by [Midvash](https://midvash.com) · [midvash.com](https://midvash.com) · [midvash.app](https://midvash.app)</sub>
+<sub>Free & open, built by [Midvash](https://midvash.com) · [midvash.com](https://midvash.com)</sub>
 

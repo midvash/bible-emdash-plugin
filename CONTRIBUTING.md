@@ -16,7 +16,7 @@ consumer site → issue (with exact repro) → branch + failing test → fix →
 
 ## Reporting a bug
 
-Open a [Bug report](https://github.com/midvash/emdash-plugin-bible/issues/new/choose).
+Open a [Bug report](https://github.com/midvash/bible-emdash-plugin/issues/new/choose).
 The single most useful thing is the **exact input and expected vs actual output**
 (a reference string, a text snippet, or an HTML fragment) — that becomes a test.
 
@@ -24,10 +24,10 @@ From a consuming project's agent, the report is filed with the GitHub CLI:
 
 ```bash
 # 1) Always dedupe first
-gh issue list --repo midvash/emdash-plugin-bible --state all --search "Jó Job resolves to John"
+gh issue list --repo midvash/bible-emdash-plugin --state all --search "Jó Job resolves to John"
 
 # 2) File it against the template
-gh issue create --repo midvash/emdash-plugin-bible \
+gh issue create --repo midvash/bible-emdash-plugin \
   --title 'Parser: "Jó 1:1" resolves to John instead of Job' \
   --label "bug,from:blog-a" \
   --body 'Plugin version: 0.2.0
