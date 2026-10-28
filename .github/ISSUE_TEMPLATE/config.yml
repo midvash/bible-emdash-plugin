@@ -4,5 +4,5 @@ contact_links:
     url: "https://api.midvash.com"
     about: "Questions about the verse data / available versions belong upstream."
   - name: "📚 Docs & usage"
-    url: "https://github.com/midvash/emdash-plugin-bible#readme"
+    url: "https://github.com/midvash/bible-emdash-plugin#readme"
     about: "Installation and configuration are covered in the README."

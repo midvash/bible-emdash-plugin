@@ -2,7 +2,7 @@
   "$schema": "https://unpkg.com/@changesets/config@3.1.4/schema.json",
   "changelog": [
     "@changesets/changelog-github",
-    { "repo": "midvash/emdash-plugin-bible" }
+    { "repo": "midvash/bible-emdash-plugin" }
   ],
   "commit": false,
   "fixed": [],
