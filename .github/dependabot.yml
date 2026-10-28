@@ -27,5 +27,10 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
+    # A changesets/action major renames inputs and must match the
+    # @changesets/cli major (v2 action = v3 CLI). Bump both by hand.
+    ignore:
+      - dependency-name: "changesets/action"
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: "ci"
