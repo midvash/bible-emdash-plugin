@@ -57,8 +57,7 @@ export function biblePlugin(options: BiblePluginOptions = {}): PluginDescriptor 
  */
 export { SETTINGS_SCHEMA, DEFAULTS, type Settings } from "./lib/settings.ts";
 
-// NOTE: intentionally no `export default`. The `emdash plugin bundle` CLI
-// extracts a standard-format manifest by probing the backend (sandbox-entry)
-// for routes/hooks — but only when the main entry has NO default-export factory
-// (a default function makes it take a descriptor-only path that omits routes).
+// NOTE: intentionally no `export default`: the trusted path imports the named
+// factory. The marketplace bundle (`emdash-plugin bundle`) does not read this
+// file; it takes identity from emdash-plugin.jsonc and probes src/plugin.ts.
 // Consumers import the named `biblePlugin` per the README.

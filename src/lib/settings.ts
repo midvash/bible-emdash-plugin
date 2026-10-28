@@ -13,7 +13,7 @@
  *                          so the form can't fall out of sync either.
  *
  * Previously the schema lived in `index.ts`, the defaults were duplicated in
- * `runtime.ts` and `sandbox-entry.ts`, and the admin form was hand-written —
+ * `runtime.ts` and `plugin.ts`, and the admin form was hand-written —
  * which let the three drift (e.g. `underlineLinks` defaulted to `true` in the
  * schema but `false` everywhere else, and `useCustomColors` was missing from
  * the schema entirely). Centralizing them here removes that whole class of bug.

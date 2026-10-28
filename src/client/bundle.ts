@@ -2,7 +2,7 @@
  * Client-side bundle (JavaScript + CSS) served by the plugin.
  *
  * Both are template-literal strings so the plugin works without any build
- * step — sandbox-entry just serves them as-is. The `__SETTINGS__` token is
+ * step — plugin.ts just serves them as-is. The `__SETTINGS__` token is
  * replaced at request time with the user's persisted settings JSON.
  *
  * Keep these strings as plain ES2017+ code: they run directly in the
