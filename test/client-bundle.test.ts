@@ -841,3 +841,55 @@ describe("client bundle (English URLs have no /en prefix)", () => {
 		expect(badges).toContain("https://midvash.com/nlt");
 	});
 });
+
+describe("client bundle (path from the reference to the tooltip)", () => {
+	const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+	const visible = (el: Element | null) => !!el && (el as HTMLElement).style.display !== "none";
+
+	async function hoverRef() {
+		document.body.innerHTML = "<article><p>João 3:16</p></article>";
+		loadClient();
+		const ref = document.querySelector(".midvash-ref")!;
+		ref.dispatchEvent(new Event("mouseover", { bubbles: true }));
+		await tick();
+		await tick();
+		return ref;
+	}
+
+	it("parks the native title while the tooltip is open and restores it on hide", async () => {
+		const ref = await hoverRef();
+		expect(ref.hasAttribute("title")).toBe(false);
+		document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+		expect(ref.getAttribute("title")).toBe("João 3:16");
+		expect(ref.hasAttribute("data-midvash-title")).toBe(false);
+	});
+
+	it("shows an invisible bridge over the gap, and hides it with the tooltip", async () => {
+		await hoverRef();
+		const bridge = document.querySelector(".midvash-tooltip-bridge");
+		expect(visible(bridge)).toBe(true);
+		expect(bridge!.getAttribute("aria-hidden")).toBe("true");
+		document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+		expect(visible(bridge)).toBe(false);
+	});
+
+	it("waits long enough to cross the gap before hiding", async () => {
+		const ref = await hoverRef();
+		const tip = document.querySelector(".midvash-tooltip");
+		ref.dispatchEvent(new Event("mouseout", { bubbles: true }));
+		await wait(220);
+		expect(visible(tip)).toBe(true);
+		await wait(200);
+		expect(visible(tip)).toBe(false);
+	});
+
+	it("never hides while the pointer is over the tooltip", async () => {
+		const ref = await hoverRef();
+		const tip = document.querySelector(".midvash-tooltip") as HTMLElement;
+		const realMatches = tip.matches.bind(tip);
+		tip.matches = (sel: string) => sel === ":hover" || realMatches(sel);
+		ref.dispatchEvent(new Event("mouseout", { bubbles: true }));
+		await wait(420);
+		expect(visible(tip)).toBe(true);
+	});
+});
