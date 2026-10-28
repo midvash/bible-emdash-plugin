@@ -40,7 +40,7 @@ jobs:
         run: npm run build
 
       - name: Validate marketplace bundle
-        run: npx emdash plugin validate
+        run: npx emdash-plugin bundle --validate-only -o .emdash-bundle-tmp
 
   changeset:
     name: changeset present

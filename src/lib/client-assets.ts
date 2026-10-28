@@ -4,7 +4,7 @@
  * This is the single place that turns the persisted settings into the inline
  * script + stylesheet. Two callers use it:
  *
- *   • the `page:fragments` hook in `sandbox-entry.ts` — the primary, zero-config
+ *   • the `page:fragments` hook in `plugin.ts` — the primary, zero-config
  *     delivery (EmDash splices the fragments into <head>/<body> automatically),
  *   • `getBibleByMidvashSnippets` in `runtime.ts` — the manual escape hatch for
  *     layouts that don't use EmDash's <EmDashHead>/<EmDashBodyEnd> components.

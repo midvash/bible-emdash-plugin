@@ -1,0 +1,21 @@
+{
+	"$schema": "./node_modules/@emdash-cms/plugin-cli/schemas/emdash-plugin.schema.json",
+	// Identity + trust contract for the EmDash marketplace (emdash-plugin CLI).
+	// Mirrors the descriptor in src/index.ts; `version` comes from package.json.
+	"slug": "bible-by-midvash",
+	"name": "Bible by Midvash",
+	"description": "Auto-detect Bible references in content and render verse tooltips on hover. Powered by the public Midvash API.",
+	"keywords": ["bible", "midvash", "tooltip", "verses"],
+	"license": "MIT",
+	// Pinned on first publish; the CLI refuses to publish from another account.
+	"publisher": "midvash.com",
+	"author": { "name": "Neto Gregório", "url": "https://midvash.com" },
+	"security": { "email": "contact@midvash.com" },
+	"repo": "https://github.com/midvash/bible-emdash-plugin",
+	"capabilities": ["network:request", "hooks.page-fragments:register"],
+	"allowedHosts": ["api.midvash.com"],
+	"storage": {},
+	"admin": {
+		"pages": [{ "path": "/settings", "label": "Bible by Midvash", "icon": "book" }]
+	}
+}

@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
 
-import plugin from "../src/sandbox-entry.ts";
+import plugin from "../src/plugin.ts";
 import type { VerseResponse } from "../src/lib/midvash.ts";
 
-// sandbox-entry imports `emdash/plugin` for types only (elided at runtime), so
+// plugin.ts imports `emdash/plugin` for types only (elided at runtime), so
 // it loads cleanly here. We exercise the hooks + route handlers with a mock ctx.
 
 const def = plugin as any;

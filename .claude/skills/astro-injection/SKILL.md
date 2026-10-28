@@ -2,7 +2,7 @@
 name: astro-injection
 description: >-
   How this plugin gets its tooltip JS/CSS and linkified anchors into an Astro/EmDash site.
-  Use when working on src/lib/client-assets.ts, the page:fragments hook in src/sandbox-entry.ts,
+  Use when working on src/lib/client-assets.ts, the page:fragments hook in src/plugin.ts,
   src/runtime.ts (inline snippets), or src/middleware.ts (SSR linkify) — injecting client
   `<script>`/`<style>`, rewriting the rendered HTML response, or deciding which delivery path
   to use. Covers Astro middleware (onRequest, sequence, response rewriting) and the is:inline /
@@ -17,7 +17,7 @@ the page. (Sandboxed installs can't do any of this — `page:fragments` is trust
 
 | Path | File | When |
 | --- | --- | --- |
-| **`page:fragments` hook** (primary, zero-config) | `src/sandbox-entry.ts` → `src/lib/client-assets.ts` | EmDash splices the `<style>`+`<script>` into `<head>`/before `</body>` automatically when the layout uses EmDash's `<EmDashHead>` / `<EmDashBodyEnd>`. |
+| **`page:fragments` hook** (primary, zero-config) | `src/plugin.ts` → `src/lib/client-assets.ts` | EmDash splices the `<style>`+`<script>` into `<head>`/before `</body>` automatically when the layout uses EmDash's `<EmDashHead>` / `<EmDashBodyEnd>`. |
 | **Inline snippets** (manual escape hatch) | `src/runtime.ts` `getBibleByMidvashSnippets` | Layouts that DON'T use `<EmDashHead>`/`<EmDashBodyEnd>` — drop the strings in yourself with `is:inline set:html`. |
 | **SSR linkify** (SEO) | `src/middleware.ts` | Rewrites plain refs → real `<a class="midvash-ref">` so crawlers index them and the script has a stable hook. |
 
@@ -27,7 +27,7 @@ admin color values before they land in the injected `<style>`.
 
 ## A. The `page:fragments` hook (primary)
 
-In `sandbox-entry.ts` the `page:fragments` hook loads settings, calls `buildClientAssets`, and
+In `plugin.ts` the `page:fragments` hook loads settings, calls `buildClientAssets`, and
 returns fragments EmDash injects for you. Requires the `hooks.page-fragments:register` capability
 (see the `emdash-plugin` skill). Nothing for the consuming site to wire up beyond using EmDash's
 head/body components. **This only runs for trusted installs.**

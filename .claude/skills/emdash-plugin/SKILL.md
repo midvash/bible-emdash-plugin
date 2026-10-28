@@ -3,8 +3,8 @@ name: emdash-plugin
 description: >-
   Develop, validate, bundle and publish EmDash plugins (EmDash = the Astro-native CMS,
   github.com/emdash-cms/emdash). Use when writing or changing the plugin descriptor,
-  sandbox-entry, hooks, routes, capabilities, KV settings, the Block Kit admin form, or
-  when running `emdash plugin validate|bundle|publish`. Also use when deciding trusted vs
+  src/plugin.ts, hooks, routes, capabilities, KV settings, the Block Kit admin form, or
+  when running `emdash-plugin bundle|publish`. Also use when deciding trusted vs
   sandboxed install, why a hook is "silently skipped", why a capability or route name fails
   publish, or why client JS/CSS won't reach the page. Platform facts grounded in the
   published `emdash` source — verify against the installed version before asserting. For
@@ -20,7 +20,7 @@ a different installed version → re-check `node_modules/emdash/src/plugins/*`.
 
 > **This repo is a worked example (v0.2.0):** a trusted plugin that declares
 > `["network:request", "hooks.page-fragments:register"]`, ships its tooltip JS/CSS through the
-> `page:fragments` hook (`src/sandbox-entry.ts` → `src/lib/client-assets.ts`), single-sources
+> `page:fragments` hook (`src/plugin.ts` → `src/lib/client-assets.ts`), single-sources
 > settings in `src/lib/settings.ts`, and keeps the descriptor a **named export, no default**.
 > Maintainer process (test-first, never push to main, changesets) lives in `AGENTS.md`.
 
@@ -28,7 +28,7 @@ a different installed version → re-check `node_modules/emdash/src/plugins/*`.
 
 | | **Trusted** (in-process) | **Sandboxed** (marketplace) |
 | --- | --- | --- |
-| Installed via | `emdash({ plugins: [myPlugin()] })` in `astro.config` | `emdash plugin bundle` → publish → tarball |
+| Installed via | `emdash({ plugins: [myPlugin()] })` in `astro.config` | `emdash-plugin bundle` → publish → tarball |
 | `page:fragments` hook | ✅ runs (inject `<script>`/`<style>`/HTML into every public page) | ❌ **never invoked** |
 | `page:metadata` hook | ✅ | ✅ (meta/canonical/JSON-LD only) |
 | Routes | ✅ JSON envelopes | ✅ JSON envelopes |
@@ -85,13 +85,13 @@ The public route handler returns `apiSuccess(result.data)` — a JSON envelope
   body arrives as `routeCtx.input`. Handlers take `(routeCtx, pluginCtx)`. Mark public routes
   `public: true`.
 
-## 5. Descriptor vs sandbox-entry — the default-export rule
+## 5. Descriptor vs plugin.ts — the default-export rule
 
 - **Descriptor** (`src/index.ts`): returns `PluginDescriptor` (`id`, `version`,
   `format: "standard"`, `entrypoint`, `capabilities`, `allowedHosts`, `adminPages`). For the
   bundle CLI to probe the backend for routes/hooks, this must be a **NAMED export only — no
   `export default`** (a default factory makes the CLI omit routes and crash in `extractManifest`).
-- **Backend** (`src/sandbox-entry.ts`): **must** `export default { hooks, routes }`.
+- **Backend** (`src/plugin.ts`): **must** `export default { hooks, routes }`.
   `emdash/src/plugins/adapt-sandbox-entry.ts` reads that default and errors if neither is present.
 
 ## 6. Settings (KV) and the Block Kit admin form
@@ -110,16 +110,18 @@ The public route handler returns `apiSuccess(result.data)` — a JSON envelope
 ## 7. Build → validate → bundle → publish
 
 1. **Build** with `tsdown` to `dist/` (externalize the `emdash` peer). This repo:
-   `tsdown src/index.ts src/sandbox-entry.ts src/runtime.ts src/middleware.ts --format esm --dts
+   `tsdown src/index.ts src/plugin.ts src/runtime.ts src/middleware.ts --format esm --dts
    --clean --platform neutral --external emdash --external emdash/plugin --external astro`.
 2. **`exports`** point to built `dist/*` files, not `src/*.ts` — the CLI maps `dist/*` back to
    `src/*` (`bundle-utils.ts` `findSourceExports`/`getSourceFromDist`). Pair `import`(dist `.js`)
    with `types`(dist `.d.ts`); set `main`/`files: ["dist", …]`.
-3. **`emdash plugin validate`** (this repo: `npm run bundle:validate`) — warns on deprecated
-   capabilities, checks manifest/route-names/exports.
-4. **`emdash plugin bundle`** — builds the tarball (needs the named-only descriptor + default-export
-   backend from §5).
-5. **`emdash plugin publish`** — hard-fails on any deprecated capability. (This repo automates
+3. **`emdash-plugin bundle --validate-only`** (emdash ≥1: CLI moved to `@emdash-cms/plugin-cli`;
+   this repo: `npm run bundle:validate`) — reads identity + trust contract from
+   `emdash-plugin.jsonc`, probes `src/plugin.ts` (fixed path) for hooks/routes, checks size caps
+   (128 KB per file). It strips the `mcp` block (and its zod schemas) from the runtime only when
+   the default export lives in `src/plugin.ts` itself — a re-export pulls zod in and busts the cap.
+4. **`emdash-plugin bundle`** — builds the tarball (into `.emdash-bundle-tmp/`, kept out of `dist/`).
+5. **`emdash-plugin publish`** — hard-fails on any deprecated capability. (This repo automates
    release via Changesets — don't bump versions by hand; see `AGENTS.md`.)
 
 ## 8. What EmDash 0.30 added (verified by 0.16.1 → 0.30.0 source diff; this repo adopted all of it in v0.5.0)
@@ -135,7 +137,7 @@ The public route handler returns `apiSuccess(result.data)` — a JSON envelope
   honored **only on `public: true` routes** — authenticated responses stay `private, no-store`;
   errors never cached.
 - **MCP tools**: `mcp: { tools: { name: { description, route, input: z.ZodType, output?,
-  destructive } } }` in the sandbox-entry default export. Tool name `/^[a-zA-Z0-9_-]+$/`; the
+  destructive } } }` in the src/plugin.ts default export. Tool name `/^[a-zA-Z0-9_-]+$/`; the
   referenced route must be **non-public and carry a `permission`** (definePlugin throws / bundle
   CLI hard-fails otherwise). Input/output are **zod v4** schemas (`z.toJSONSchema` at bundle).
 - **`declaredAccess`**: the manifest's structured trust contract, authoritative over

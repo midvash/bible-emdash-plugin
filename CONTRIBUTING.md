@@ -71,7 +71,7 @@ PR. Merging that PR:
 `id-token: write` permission (already set).
 
 The marketplace tarball (`npm run bundle`) is built separately with
-`emdash plugin bundle`; see the README. Note it only ships the JSON API when
+`emdash-plugin bundle`; see the README. Note it only ships the JSON API when
 sandboxed — the tooltip feature requires a trusted install.
 
 ## Labels

@@ -189,10 +189,10 @@ The plugin bundles into a valid EmDash Marketplace tarball:
 
 ```bash
 npm run bundle:validate   # build + validate the manifest, no tarball
-npm run bundle            # build + produce dist/<id>-<version>.tar.gz
+npm run bundle            # build + produce .emdash-bundle-tmp/<id>-<version>.tar.gz
 ```
 
-`emdash plugin bundle` extracts a `manifest.json` (id, version, capabilities, routes, hooks, admin pages) from the descriptor + backend, bundles `src/sandbox-entry.ts` into a single `backend.js`, and checks it against the marketplace size caps. Publish with `emdash plugin publish`.
+`emdash-plugin bundle` (from `@emdash-cms/plugin-cli`) reads the identity and trust contract from `emdash-plugin.jsonc`, probes the backend for routes and hooks to write `manifest.json`, bundles `src/plugin.ts` into a single `backend.js`, and checks it against the marketplace size caps. Publish with `emdash-plugin publish`.
 
 > **Note:** a *sandboxed* marketplace install runs only the JSON routes (`/lookup`, `/versions`) and the admin page — EmDash does **not** run `page:fragments` for sandboxed plugins, so the hover tooltips won't render. For the full tooltip feature, install as a **trusted** plugin (npm + `astro.config`, see [Installation](#installation)).
 

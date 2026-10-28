@@ -193,10 +193,10 @@ O plugin também empacota pro [Marketplace do EmDash](https://midvash.com) como 
 
 ```bash
 npm run bundle:validate   # build + valida o manifest, sem tarball
-npm run bundle            # build + gera dist/<id>-<version>.tar.gz
+npm run bundle            # build + gera .emdash-bundle-tmp/<id>-<version>.tar.gz
 ```
 
-O `emdash plugin bundle` extrai um `manifest.json` (id, versão, capabilities, rotas, hooks, páginas de admin) do descriptor + backend, empacota `src/sandbox-entry.ts` num único `backend.js` e checa os limites de tamanho do marketplace. Publique com `emdash plugin publish`.
+O `emdash-plugin bundle` (do `@emdash-cms/plugin-cli`) lê a identidade e o contrato de confiança do `emdash-plugin.jsonc`, sonda o backend atrás de rotas e hooks pra gerar o `manifest.json`, empacota `src/plugin.ts` num único `backend.js` e checa os limites de tamanho do marketplace. Publique com `emdash-plugin publish`.
 
 > **Nota:** um install *sandboxed* do Marketplace roda só as rotas JSON (`/lookup`, `/versions`) e a página de admin — o EmDash **não** executa `page:fragments` para plugins sandboxed, então os tooltips não aparecem. Para a feature completa, instale como plugin **trusted** (npm + `astro.config`, veja [Instalação](#instalação)).
 

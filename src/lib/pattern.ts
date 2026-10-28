@@ -22,7 +22,7 @@
  * uses it to resolve the matched name to the slug for URL construction.
  *
  * Previously `buildClientPattern` was copy-pasted into `runtime.ts` and
- * `sandbox-entry.ts`; both now import from here.
+ * `plugin.ts`; both now import from here.
  */
 
 import { BOOKS, normalize, type Language } from "./books.ts";

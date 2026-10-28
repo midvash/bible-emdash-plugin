@@ -13,7 +13,7 @@ tested fixes and PRs. Follow this loop exactly. (Human contributors: see
 - Source of truth for settings: `src/lib/settings.ts` (defaults, admin schema,
   and the Block Kit form all derive from it — don't hand-edit the form).
 - Client assets are built once in `src/lib/client-assets.ts` and shipped via the
-  `page:fragments` hook (`src/sandbox-entry.ts`) or `getBibleByMidvashSnippets`
+  `page:fragments` hook (`src/plugin.ts`) or `getBibleByMidvashSnippets`
   (`src/runtime.ts`). Plugin **routes always return JSON** — never serve JS/CSS
   from a route.
 - Strong test suite in `test/` (run in Node + happy-dom). Coverage thresholds are
