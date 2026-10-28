@@ -42,13 +42,14 @@ jobs:
           publish-script: npm run release
           commit-message: "chore: version packages"
           pr-title: "chore: version packages"
-        env:
           # Use a PAT (RELEASE_PR_TOKEN) when available so the "Version Packages"
           # PR is authored by a user, not the github-actions[bot] — which means
           # opening/updating that PR DOES trigger the CI workflow (the default
           # GITHUB_TOKEN is intentionally barred from doing that, as an anti-loop
           # guard). Falls back to GITHUB_TOKEN if the secret isn't set, so the
           # release flow still works (the version PR just won't run CI).
-          GITHUB_TOKEN: ${{ secrets.RELEASE_PR_TOKEN || secrets.GITHUB_TOKEN }}
+          # changesets/action v2 only reads the token from this input.
+          github-token: ${{ secrets.RELEASE_PR_TOKEN || secrets.GITHUB_TOKEN }}
+        env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: "true"
