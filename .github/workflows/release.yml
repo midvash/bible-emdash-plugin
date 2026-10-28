@@ -38,10 +38,10 @@ jobs:
       - name: Create release PR or publish
         uses: changesets/action@v2
         with:
-          version: npm run version-packages
-          publish: npm run release
-          commit: "chore: version packages"
-          title: "chore: version packages"
+          version-script: npm run version-packages
+          publish-script: npm run release
+          commit-message: "chore: version packages"
+          pr-title: "chore: version packages"
         env:
           # Use a PAT (RELEASE_PR_TOKEN) when available so the "Version Packages"
           # PR is authored by a user, not the github-actions[bot] — which means
