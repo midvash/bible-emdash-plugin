@@ -4,18 +4,36 @@
 	// Mirrors the descriptor in src/index.ts; `version` comes from package.json.
 	"slug": "bible-by-midvash",
 	"name": "Bible by Midvash",
-	"description": "Auto-detect Bible references in content and render verse tooltips on hover. Powered by the public Midvash API.",
-	"keywords": ["bible", "midvash", "tooltip", "verses"],
+	// Store (sandboxed) edition: built from src/plugin.ts, which has no
+	// page:fragments hook (trusted-only). The hover tooltip ships only in the
+	// trusted npm install (src/trusted.ts); see the README.
+	"description": "Insert Bible passages into your posts from the editor, in 23 free versions (pt, en, es). Powered by the Midvash API.",
+	"keywords": ["bible", "midvash", "verses", "editor"],
 	"license": "MIT",
 	// Pinned on first publish; the CLI refuses to publish from another account.
 	"publisher": "midvash.com",
 	"author": { "name": "Neto Gregório", "url": "https://midvash.com" },
 	"security": { "email": "contact@midvash.com" },
 	"repo": "https://github.com/midvash/bible-emdash-plugin",
-	"capabilities": ["network:request", "hooks.page-fragments:register"],
+	"capabilities": ["network:request", "admin.editor-draft:read", "admin.editor-draft:patch"],
 	"allowedHosts": ["api.midvash.com"],
 	"storage": {},
 	"admin": {
-		"pages": [{ "path": "/settings", "label": "Bible by Midvash", "icon": "book" }]
+		"pages": [{ "path": "/settings", "label": "Bible by Midvash", "icon": "book" }],
+		// "Insert verse" panel beside a saved entry. Draft access needs an
+		// explicit collection list; these are the EmDash templates' collections,
+		// all with a Portable Text `content` field (src/lib/insert-verse.ts).
+		"editorPanels": [
+			{
+				"id": "insert-verse",
+				"title": "Bible verse",
+				"route": "editor/insert-verse",
+				"collections": ["posts", "pages", "projects"],
+				"draft": {
+					"read": { "fields": ["content"] },
+					"patch": { "fields": ["content"] }
+				}
+			}
+		]
 	}
 }

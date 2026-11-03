@@ -98,7 +98,7 @@ export const CLIENT_SETTING_KEYS = [
  * plugin detects (pt-br / en / es); the complete live list is available via
  * the plugin's own `/versions` route.
  */
-const VERSION_OPTIONS = [
+export const VERSION_OPTIONS = [
 	// Portuguese-BR (7)
 	{ value: "almeida-livre", label: "BL — Bíblia Livre (Almeida 1819)" },
 	{ value: "alm1911", label: "ALM1911 — Almeida 1911" },

@@ -29,7 +29,15 @@ export default defineConfig({
 
 Listo. El plugin auto-inyecta su script + estilos de tooltip en las páginas públicas mediante el hook `page:fragments` de EmDash — sin `<script>`/`<link>` que agregar — siempre que tu layout renderice los componentes `<EmDashHead />` y `<EmDashBodyEnd />` (la configuración estándar de EmDash).
 
-> **Modelo de instalación — trusted, no sandboxed.** Instálalo vía npm + `astro.config` (in-process), como [@jdevalk/emdash-plugin-seo](https://github.com/jdevalk/emdash-plugin-seo). Los tooltips al pasar el cursor necesitan JS/CSS del cliente, y EmDash solo permite que los plugins **trusted** inyecten scripts/estilos en las páginas. Una instalación *sandboxed* del Marketplace no puede inyectar scripts (por seguridad, a propósito) — solo expondría la API JSON `/lookup`, sin los tooltips. Para la función completa, usa instalación trusted.
+> **Dos ediciones: trusted (npm) × tienda.** Instálalo vía npm + `astro.config` (in-process, **trusted**) para tener el plugin completo, como [@jdevalk/emdash-plugin-seo](https://github.com/jdevalk/emdash-plugin-seo). El Marketplace de EmDash (plugins.emdashcms.com) instala una edición **sandboxed**, y EmDash solo deja que los plugins trusted inyecten scripts/estilos en las páginas, así que la edición de la tienda no tiene tooltip al pasar el cursor.
+>
+> | | Trusted (npm) | Tienda (sandboxed) |
+> |---|---|---|
+> | Tooltips al pasar el cursor en páginas públicas (`page:fragments`) | ✅ | ❌ |
+> | Panel **Insertar versículo** en el editor | ❌ | ✅ |
+> | Rutas JSON (`/lookup`, `/passages`, `/versions`), página de configuración, herramienta MCP `scan` | ✅ | ✅ |
+>
+> **Insertar versículo** (edición de la tienda): abre una entrada, página o proyecto ya guardado, abre el panel **Bible verse** junto al editor, escribe una referencia (`Salmos 23`, `Juan 3:16-18`) y elige la versión. El texto entra como cita **al final del texto** (el patch de borrador de EmDash reemplaza el campo entero y no conoce la posición del cursor), seguido de la referencia y del crédito de la versión (las versiones CC BY lo exigen), con enlace a midvash.com cuando la opción `showReadMore` está activada. El editor muestra la vista previa; nada se guarda hasta que guardes. Funciona en contenidos guardados al menos una vez, en las colecciones `posts`, `pages` y `projects`, en su campo Portable Text `content` (el formato de las plantillas de EmDash).
 
 ### Inyección manual (layouts sin los componentes de EmDash)
 
@@ -199,7 +207,7 @@ npm run bundle            # build + genera .emdash-bundle-tmp/<id>-<version>.tar
 
 `emdash-plugin bundle` (de `@emdash-cms/plugin-cli`) lee la identidad y el contrato de confianza de `emdash-plugin.jsonc`, sondea el backend en busca de rutas y hooks para generar el `manifest.json`, empaqueta `src/plugin.ts` en un único `backend.js` y verifica los límites de tamaño del marketplace. Publica con `emdash-plugin publish`.
 
-> **Nota:** una instalación *sandboxed* del Marketplace solo ejecuta las rutas JSON (`/lookup`, `/versions`) y la página de admin — EmDash **no** ejecuta `page:fragments` para plugins sandboxed, así que los tooltips no se muestran. Para la función completa, instala como plugin **trusted** (npm + `astro.config`, ver [Instalación](#instalación)).
+> **Nota:** el bundle de la tienda se construye a partir de `src/plugin.ts`, la edición **sandboxed**: no tiene el hook `page:fragments` (EmDash nunca lo ejecuta en plugins sandboxed), así que no tiene tooltip, y trae el panel **Insertar versículo** en el editor (ver [Dos ediciones](#instalación)). La instalación trusted vía npm usa `src/trusted.ts` = el mismo backend + el hook del tooltip.
 
 ## Enlaces
 

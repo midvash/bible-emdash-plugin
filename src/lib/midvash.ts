@@ -89,6 +89,12 @@ export interface FetchOptions {
 	timeoutMs: number;
 	cacheEnabled: boolean;
 	cacheTtlSeconds: number;
+	/**
+	 * Fetch a whole-chapter ref in full instead of the tooltip's
+	 * `?preview=N` excerpt (used when inserting a passage into the editor).
+	 * Cached under its own key so it never serves a truncated preview.
+	 */
+	fullChapter?: boolean;
 }
 
 export interface KVLike {
@@ -166,7 +172,9 @@ export async function fetchVerse(
 ): Promise<VerseResult> {
 	const verseStart = ref.verse ?? 0;
 	const verseEnd = ref.verseEnd ?? 0;
-	const cacheKey = verseCacheKey(opts.version, ref.slug, ref.chapter, verseStart, verseEnd);
+	const fullChapter = opts.fullChapter === true && ref.verse === undefined;
+	const cacheKey =
+		verseCacheKey(opts.version, ref.slug, ref.chapter, verseStart, verseEnd) + (fullChapter ? ":full" : "");
 
 	if (opts.cacheEnabled) {
 		const cached = await kv.get<{ at: number; data: VerseResponse }>(cacheKey);
@@ -189,7 +197,7 @@ export async function fetchVerse(
 	// Whole-chapter refs get `?preview=N` so the tooltip payload stays small
 	// (the API truncates at a verse boundary and sets `meta.truncated`). Verse
 	// and range refs are already short — fetch them in full.
-	const previewQuery = ref.verse === undefined ? `?preview=${CHAPTER_PREVIEW_CHARS}` : "";
+	const previewQuery = ref.verse === undefined && !fullChapter ? `?preview=${CHAPTER_PREVIEW_CHARS}` : "";
 	const url = `https://api.midvash.com/v1/${encodeURIComponent(opts.version)}/${ref.slug}/${ref.chapter}${versePath}${previewQuery}`;
 
 	const controller = new AbortController();

@@ -29,7 +29,15 @@ export default defineConfig({
 
 Pronto. O plugin auto-injeta o script + estilos do tooltip nas páginas públicas pelo hook `page:fragments` do EmDash — sem `<script>`/`<link>` pra adicionar — desde que seu layout renderize os componentes `<EmDashHead />` e `<EmDashBodyEnd />` (o setup padrão do EmDash).
 
-> **Modelo de instalação — trusted, não sandboxed.** Instale via npm + `astro.config` (in-process), igual ao [@jdevalk/emdash-plugin-seo](https://github.com/jdevalk/emdash-plugin-seo). Tooltips no hover precisam de JS/CSS client-side, e o EmDash só permite que plugins **trusted** injetem scripts/estilos nas páginas. Um install *sandboxed* do Marketplace não consegue injetar scripts (por segurança, de propósito) — exporia só a API JSON `/lookup`, sem os tooltips. Para a feature completa, use instalação trusted.
+> **Duas edições: trusted (npm) × loja.** Instale via npm + `astro.config` (in-process, **trusted**) para ter o plugin completo, igual ao [@jdevalk/emdash-plugin-seo](https://github.com/jdevalk/emdash-plugin-seo). O Marketplace do EmDash (plugins.emdashcms.com) instala uma edição **sandboxed**, e o EmDash só deixa plugins trusted injetarem scripts/estilos nas páginas, então a edição da loja não tem tooltip no hover.
+>
+> | | Trusted (npm) | Loja (sandboxed) |
+> |---|---|---|
+> | Tooltips no hover nas páginas públicas (`page:fragments`) | ✅ | ❌ |
+> | Painel **Inserir versículo** no editor | ❌ | ✅ |
+> | Rotas JSON (`/lookup`, `/passages`, `/versions`), página de configurações, ferramenta MCP `scan` | ✅ | ✅ |
+>
+> **Inserir versículo** (edição da loja): abra um post, página ou projeto já salvo, abra o painel **Bible verse** ao lado do editor, digite uma referência (`Salmos 23`, `João 3:16-18`) e escolha a versão. O texto entra como citação **no fim do texto** (o patch de rascunho do EmDash troca o campo inteiro e não sabe a posição do cursor), seguido da referência e do crédito da versão (versões CC BY exigem), com link pro midvash.com quando a configuração `showReadMore` está ligada. O editor mostra a prévia; nada é salvo até você salvar. Funciona em conteúdos já salvos uma vez, nas coleções `posts`, `pages` e `projects`, no campo Portable Text `content` (o formato dos templates do EmDash).
 
 ### Injeção manual (layouts sem os componentes do EmDash)
 
@@ -198,7 +206,7 @@ npm run bundle            # build + gera .emdash-bundle-tmp/<id>-<version>.tar.g
 
 O `emdash-plugin bundle` (do `@emdash-cms/plugin-cli`) lê a identidade e o contrato de confiança do `emdash-plugin.jsonc`, sonda o backend atrás de rotas e hooks pra gerar o `manifest.json`, empacota `src/plugin.ts` num único `backend.js` e checa os limites de tamanho do marketplace. Publique com `emdash-plugin publish`.
 
-> **Nota:** um install *sandboxed* do Marketplace roda só as rotas JSON (`/lookup`, `/versions`) e a página de admin — o EmDash **não** executa `page:fragments` para plugins sandboxed, então os tooltips não aparecem. Para a feature completa, instale como plugin **trusted** (npm + `astro.config`, veja [Instalação](#instalação)).
+> **Nota:** o bundle da loja é feito a partir de `src/plugin.ts`, a edição **sandboxed**: não tem o hook `page:fragments` (o EmDash nunca o executa em plugin sandboxed), então não tem tooltip no hover, e traz o painel **Inserir versículo** no editor (veja [Duas edições](#instalação)). O install trusted via npm usa `src/trusted.ts` = o mesmo backend + o hook do tooltip.
 
 ## Links
 
