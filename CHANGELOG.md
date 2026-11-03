@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.1
+
+### Patch Changes
+
+- [#101](https://github.com/midvash/bible-emdash-plugin/pull/101) [`39dbb7d`](https://github.com/midvash/bible-emdash-plugin/commit/39dbb7dbf12ae51ee331e1e173e37a0465d2d894) Thanks [@onetogregorio](https://github.com/onetogregorio)! - Marketplace listing: icon, banner, a search-friendly name, description and keywords, and description, installation, FAQ, changelog and security sections that explain the two editions (Marketplace and npm).
+
 ## 0.10.0
 
 ### Minor Changes
