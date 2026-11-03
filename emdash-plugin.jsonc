@@ -3,12 +3,12 @@
 	// Identity + trust contract for the EmDash marketplace (emdash-plugin CLI).
 	// Mirrors the descriptor in src/index.ts; `version` comes from package.json.
 	"slug": "bible-by-midvash",
-	"name": "Bible by Midvash",
+	"name": "Bible by Midvash: Insert Bible Verses",
 	// Store (sandboxed) edition: built from src/plugin.ts, which has no
 	// page:fragments hook (trusted-only). The hover tooltip ships only in the
 	// trusted npm install (src/trusted.ts); see the README.
-	"description": "Insert Bible passages into your posts from the editor, in 23 free versions (pt, en, es). Powered by the Midvash API.",
-	"keywords": ["bible", "midvash", "verses", "editor"],
+	"description": "Insert Bible verses and passages into your posts from the editor. 23 free translations (KJV, BSB, Almeida, Reina-Valera).",
+	"keywords": ["bible", "scripture", "bible verses", "christian", "kjv"],
 	"license": "MIT",
 	// Pinned on first publish; the CLI refuses to publish from another account.
 	"publisher": "midvash.com",
@@ -18,6 +18,24 @@
 	"capabilities": ["network:request", "admin.editor-draft:read", "admin.editor-draft:patch"],
 	"allowedHosts": ["api.midvash.com"],
 	"storage": {},
+	// Marketplace listing (Markdown, English). Kept in store/ so the listing
+	// copy is reviewed like code; the changelog there is a curated summary
+	// (CHANGELOG.md is over the 20 KB per-section cap).
+	"sections": {
+		"description": { "file": "store/description.md" },
+		"installation": { "file": "store/installation.md" },
+		"faq": { "file": "store/faq.md" },
+		"changelog": { "file": "store/changelog.md" },
+		"security": { "file": "store/security.md" }
+	},
+	"release": {
+		"artifacts": {
+			// icon: brand icon-512 from the Midvash monorepo, 256x256.
+			// banner: midvash.com's default Open Graph image (1200x630).
+			"icon": { "file": "assets/icon.png" },
+			"banner": { "file": "assets/banner.jpg" }
+		}
+	},
 	"admin": {
 		"pages": [{ "path": "/settings", "label": "Bible by Midvash", "icon": "book" }],
 		// "Insert verse" panel beside a saved entry. Draft access needs an
