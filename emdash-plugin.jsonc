@@ -12,7 +12,7 @@
 	"license": "MIT",
 	// Pinned on first publish; the CLI refuses to publish from another account.
 	"publisher": "midvash.com",
-	"author": { "name": "Neto Gregório", "url": "https://midvash.com" },
+	"author": { "name": "Midvash - Bible & Devotional", "url": "https://midvash.com" },
 	"security": { "email": "contact@midvash.com" },
 	"repo": "https://github.com/midvash/bible-emdash-plugin",
 	"capabilities": ["network:request", "admin.editor-draft:read", "admin.editor-draft:patch"],
