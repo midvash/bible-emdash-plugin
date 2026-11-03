@@ -29,7 +29,15 @@ export default defineConfig({
 
 That's it. The plugin auto-injects its tooltip script + styles into your public pages through EmDash's `page:fragments` hook — no `<script>`/`<link>` tags to add — as long as your layout renders EmDash's `<EmDashHead />` and `<EmDashBodyEnd />` components (the standard EmDash setup).
 
-> **Install model — trusted, not sandboxed.** Install this via npm + `astro.config` (in-process), like [@jdevalk/emdash-plugin-seo](https://github.com/jdevalk/emdash-plugin-seo). Hover tooltips need client-side JS/CSS, and EmDash only lets **trusted** plugins inject scripts/styles into pages. A *sandboxed* marketplace install cannot inject scripts (by design, for security), so it would expose only the `/lookup` JSON API — not the tooltips. For the full feature, use a trusted install.
+> **Two editions: trusted (npm) × store.** Install via npm + `astro.config` (in-process, **trusted**) for the full plugin, like [@jdevalk/emdash-plugin-seo](https://github.com/jdevalk/emdash-plugin-seo). The EmDash Marketplace (plugins.emdashcms.com) installs a **sandboxed** edition, and EmDash only lets trusted plugins inject scripts/styles into pages, so the store edition has no hover tooltip.
+>
+> | | Trusted (npm) | Store (sandboxed) |
+> |---|---|---|
+> | Hover tooltips on public pages (`page:fragments`) | ✅ | ❌ |
+> | **Insert verse** panel in the editor | ❌ | ✅ |
+> | JSON routes (`/lookup`, `/passages`, `/versions`), settings page, `scan` MCP tool | ✅ | ✅ |
+>
+> **Insert verse** (store edition): open a saved post, page or project, open the **Bible verse** panel beside the editor, type a reference (`Salmos 23`, `John 3:16-18`) and pick a version. The passage is added as a quote **at the end of the text** (EmDash's draft patch replaces the whole field and has no cursor position), followed by the reference and the version credit (CC BY versions require it), linked to midvash.com when the `showReadMore` setting is on. The editor previews the change; nothing is saved until you save. It works on entries already saved once, in the `posts`, `pages` and `projects` collections, on their Portable Text `content` field (the EmDash templates' layout).
 
 ### Manual injection (layouts without EmDash components)
 
@@ -194,7 +202,7 @@ npm run bundle            # build + produce .emdash-bundle-tmp/<id>-<version>.ta
 
 `emdash-plugin bundle` (from `@emdash-cms/plugin-cli`) reads the identity and trust contract from `emdash-plugin.jsonc`, probes the backend for routes and hooks to write `manifest.json`, bundles `src/plugin.ts` into a single `backend.js`, and checks it against the marketplace size caps. Publish with `emdash-plugin publish`.
 
-> **Note:** a *sandboxed* marketplace install runs only the JSON routes (`/lookup`, `/versions`) and the admin page — EmDash does **not** run `page:fragments` for sandboxed plugins, so the hover tooltips won't render. For the full tooltip feature, install as a **trusted** plugin (npm + `astro.config`, see [Installation](#installation)).
+> **Note:** the store bundle is built from `src/plugin.ts`, the **sandboxed** edition: it has no `page:fragments` hook (EmDash never runs it for sandboxed plugins), so it has no hover tooltip, and adds the **Insert verse** editor panel instead (see [Two editions](#installation)). The trusted npm install uses `src/trusted.ts` = the same backend + the tooltip hook.
 
 ## Links
 

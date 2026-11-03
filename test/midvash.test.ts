@@ -126,6 +126,16 @@ describe("fetchVerse", () => {
 		expect(http.lastUrl).toBe("https://api.midvash.com/v1/naa/psalms/23?preview=320");
 	});
 
+	it("fetches a whole chapter in full (no ?preview) under its own cache key with fullChapter", async () => {
+		const kv = makeKV({ "cache:verse:naa:psalms:23:0-0": { at: Date.now(), data: VERSE } });
+		const http = makeHttp(() => new Response(JSON.stringify(VERSE), { status: 200 }));
+		await fetchVerse({ slug: "psalms", matchedName: "Salmos", chapter: 23 }, { ...OPTS, fullChapter: true }, kv, http);
+		// The cached tooltip preview is NOT reused for the full chapter.
+		expect(http.calls).toBe(1);
+		expect(http.lastUrl).toBe("https://api.midvash.com/v1/naa/psalms/23");
+		expect(kv.store.has("cache:verse:naa:psalms:23:0-0:full")).toBe(true);
+	});
+
 	it("does NOT add ?preview to a verse or range URL (full text wanted)", async () => {
 		const kv = makeKV();
 		const http = makeHttp(() => new Response(JSON.stringify(VERSE), { status: 200 }));

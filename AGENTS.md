@@ -6,14 +6,18 @@ tested fixes and PRs. Follow this loop exactly. (Human contributors: see
 
 ## Project facts
 
-- **Trusted (in-process) plugin**, distributed on npm. Tooltips need client JS/CSS,
-  which EmDash only lets trusted plugins inject (via the `page:fragments` hook).
-  A sandboxed/marketplace install can't run the tooltips — never "fix" a bug by
-  assuming sandbox script injection works; it doesn't.
+- **Two editions.** Trusted (in-process) on npm: `src/trusted.ts` = the store
+  backend + the `page:fragments` tooltip hook (descriptor entrypoint, `./sandbox`
+  export). Store (sandboxed, plugins.emdashcms.com): `src/plugin.ts`, which the
+  `emdash-plugin bundle` CLI always builds; it has no `page:fragments` (EmDash
+  never runs it sandboxed) and adds the "Insert verse" editor panel
+  (`editor/insert-verse`, `src/lib/insert-verse.ts`). Never "fix" a bug by
+  assuming sandbox script injection works; it doesn't. Keep trusted-only hooks
+  out of `src/plugin.ts` (`npm run bundle:validate` warns).
 - Source of truth for settings: `src/lib/settings.ts` (defaults, admin schema,
   and the Block Kit form all derive from it — don't hand-edit the form).
 - Client assets are built once in `src/lib/client-assets.ts` and shipped via the
-  `page:fragments` hook (`src/plugin.ts`) or `getBibleByMidvashSnippets`
+  `page:fragments` hook (`src/trusted.ts`) or `getBibleByMidvashSnippets`
   (`src/runtime.ts`). Plugin **routes always return JSON** — never serve JS/CSS
   from a route.
 - Strong test suite in `test/` (run in Node + happy-dom). Coverage thresholds are

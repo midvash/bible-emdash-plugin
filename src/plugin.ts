@@ -1,13 +1,13 @@
 /**
- * Bible by Midvash — plugin backend (hooks + routes).
+ * Bible by Midvash — plugin backend, STORE (sandboxed) edition.
+ *
+ * This is the entry the marketplace bundle builds (`emdash-plugin bundle`
+ * always reads `src/plugin.ts`), so it uses only hooks a sandboxed install can
+ * run. The trusted npm install adds the `page:fragments` tooltip hook on top of
+ * this in `trusted.ts`.
  *
  * Hooks:
  *   plugin:install     seed default settings into KV
- *   page:fragments     inject the tooltip <style> + <script> into public pages
- *                      (TRUSTED in-process only — EmDash never runs page:fragments
- *                      for sandboxed plugins, so the tooltip feature requires a
- *                      trusted install. Needs the hooks.page-fragments:register
- *                      capability.)
  *
  * Routes (all JSON — EmDash wraps every plugin route reply as { data: ... }):
  *   GET  /lookup?ref=&v=&lang=   public — resolve a single reference (cached 5 min)
@@ -19,6 +19,9 @@
  *        admin                   admin  — Block Kit settings form
  *        scan                    admin  — diagnostic: detect refs in text
  *                                         (plugins:manage; also an MCP tool)
+ *        editor/insert-verse     editor — "Insert verse" saved-entry panel:
+ *                                         appends a passage as a blockquote to
+ *                                         the draft (admin.editor-draft:*)
  */
 
 import { z } from "zod";
@@ -29,19 +32,20 @@ import { displayName, type Language } from "./lib/books.ts";
 import { findReferences, parseReference } from "./lib/parser.ts";
 import { buildReadMoreUrl, fetchVerse, fetchPassages, fetchVersions } from "./lib/midvash.ts";
 import type { VerseResult } from "./lib/midvash.ts";
-import { buildClientAssets } from "./lib/client-assets.ts";
-import { localeToLanguage } from "./lib/locale.ts";
 import {
-	DEFAULTS,
-	type Settings,
-	buildAdminFields,
-	coerceSetting,
-	loadSettings as loadSettingsFromKv,
-	versionName,
-} from "./lib/settings.ts";
+	INSERT_FIELD,
+	MAX_FIELD_BYTES,
+	appendBlocks,
+	buildQuoteBlocks,
+	jsonBytes,
+	panelStrings,
+	referenceLabel,
+	renderInsertPanel,
+} from "./lib/insert-verse.ts";
+import { SETTINGS_PREFIX, loadPluginSettings } from "./lib/kv-settings.ts";
+import { localeToLanguage } from "./lib/locale.ts";
+import { DEFAULTS, type Settings, buildAdminFields, versionName } from "./lib/settings.ts";
 import { creditLine, servedVersion } from "./lib/versions.ts";
-
-const SETTINGS_PREFIX = "settings:";
 
 /** A parsed reference paired with its language-aware display string. */
 type ParsedRef = ReturnType<typeof parseReference>;
@@ -95,29 +99,8 @@ function toLookupPayload(
 	};
 }
 
-/**
- * Read all settings from this plugin's KV store, falling back to DEFAULTS.
- * Fast path: one `kv.list("settings:")` range read instead of ~15 point reads
- * (this runs on every page render via page:fragments and on every route).
- */
-async function loadSettings(ctx: PluginContext): Promise<Settings> {
-	if (typeof ctx.kv.list === "function") {
-		try {
-			const entries = await ctx.kv.list(SETTINGS_PREFIX);
-			const out: Settings = { ...DEFAULTS };
-			for (const { key, value } of entries) {
-				const k = key.slice(SETTINGS_PREFIX.length);
-				if (!(k in DEFAULTS)) continue;
-				// Validate/coerce against the schema; ignore corrupt values.
-				const coerced = coerceSetting(k, value);
-				if (coerced !== undefined) (out as unknown as Record<string, unknown>)[k] = coerced;
-			}
-			return out;
-		} catch {
-			// Fall through to per-key reads on any list() failure.
-		}
-	}
-	return loadSettingsFromKv((key) => ctx.kv.get(key));
+function loadSettings(ctx: PluginContext): Promise<Settings> {
+	return loadPluginSettings(ctx.kv);
 }
 
 async function renderSettingsBlocks(ctx: PluginContext): Promise<unknown[]> {
@@ -153,31 +136,6 @@ export default {
 						await ctx.kv.set(`${SETTINGS_PREFIX}${k}`, v);
 					}
 				}
-			},
-		},
-
-		// Auto-inject the tooltip assets into every public page. EmDash splices
-		// these fragments into <head> / before </body> when the site layout uses
-		// its <EmDashHead> / <EmDashBodyEnd> components.
-		"page:fragments": {
-			handler: async (event: { page?: { locale?: string | null } }, ctx: PluginContext) => {
-				const settings = await loadSettings(ctx);
-				if (!settings.enabled) return [];
-				const { js, css } = buildClientAssets(settings, event?.page?.locale);
-				return [
-					{
-						kind: "html" as const,
-						placement: "head" as const,
-						html: `<style>${css}</style>`,
-						key: "bible-by-midvash:css",
-					},
-					{
-						kind: "inline-script" as const,
-						placement: "body:end" as const,
-						code: js,
-						key: "bible-by-midvash:js",
-					},
-				];
 			},
 		},
 	},
@@ -374,6 +332,87 @@ export default {
 				}
 
 				return { matches };
+			},
+		},
+
+		// "Insert verse" saved-entry panel (emdash-plugin.jsonc
+		// `admin.editorPanels`). panel_load renders the form; submitting it
+		// fetches the passage and returns an `editor-draft-patch` that sets the
+		// `content` field to its current draft value + a blockquote at the end
+		// (patches replace whole fields; the host gives no cursor position).
+		// The host previews the patch and marks the form dirty; nothing is saved
+		// until the author saves.
+		"editor/insert-verse": {
+			public: false,
+			permission: "content:edit_own",
+			handler: async (routeCtx: any, ctx: PluginContext) => {
+				const settings = await loadSettings(ctx);
+				// Panel copy follows the admin locale; the inserted reference
+				// follows the content's locale.
+				const uiLanguage = localeToLanguage(routeCtx.ui?.locale) ?? settings.language;
+				const contentLanguage =
+					localeToLanguage(routeCtx.ui?.contentLocale ?? routeCtx.ui?.entry?.locale) ?? settings.language;
+				const t = panelStrings(uiLanguage);
+
+				const input = (routeCtx.input ?? {}) as {
+					type?: string;
+					action_id?: string;
+					values?: Record<string, unknown>;
+					draft?: { fields?: Record<string, unknown> };
+				};
+				if (input.type !== "form_submit" || input.action_id !== "insert") {
+					return { blocks: renderInsertPanel(uiLanguage, { version: settings.defaultVersion }) };
+				}
+
+				const values = input.values ?? {};
+				const refRaw = typeof values.ref === "string" ? values.ref.trim() : "";
+				const version = servedVersion(
+					typeof values.version === "string" && values.version ? values.version : settings.defaultVersion,
+				);
+				const form = { ref: refRaw, version };
+				const fail = (message: string) => ({ blocks: renderInsertPanel(uiLanguage, form, message) });
+
+				const parsed = parseReference(refRaw);
+				if (!parsed) return fail(t.unrecognized);
+				const draftFields = input.draft?.fields;
+				if (!draftFields || !(INSERT_FIELD in draftFields)) return fail(t.noField);
+				if (!ctx.http) throw new Error("Network capability missing");
+
+				const result = await fetchVerse(
+					parsed,
+					{
+						version,
+						timeoutMs: settings.apiTimeoutMs,
+						cacheEnabled: settings.cacheEnabled,
+						cacheTtlSeconds: settings.cacheTtlSeconds,
+						fullChapter: true,
+					},
+					ctx.kv,
+					ctx.http,
+				);
+				if (!result.ok) return fail(result.kind === "not-found" ? t.notFound : t.fetchError);
+
+				const verse = result.data;
+				const served = verse.data.version || version;
+				const reference = referenceLabel(parsed, displayName(parsed.slug, contentLanguage));
+				const quote = buildQuoteBlocks({
+					reference,
+					text: verse.data.text ?? "",
+					// CC BY versions require the credit next to the text.
+					attribution: creditLine(verse.meta.copyright) ?? versionName(served),
+					href: settings.showReadMore ? buildReadMoreUrl(parsed, served, contentLanguage) : undefined,
+				});
+				const value = appendBlocks(draftFields[INSERT_FIELD], quote);
+				if (jsonBytes(value) > MAX_FIELD_BYTES) return fail(t.tooLarge);
+
+				return {
+					blocks: renderInsertPanel(uiLanguage, { version: served }),
+					toast: { message: t.inserted(reference), type: "success" as const },
+					patch: {
+						type: "editor-draft-patch" as const,
+						operations: [{ op: "set" as const, field: INSERT_FIELD, value }],
+					},
+				};
 			},
 		},
 	},

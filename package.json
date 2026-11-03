@@ -29,6 +29,10 @@
 			"import": "./dist/index.js"
 		},
 		"./sandbox": {
+			"types": "./dist/trusted.d.ts",
+			"import": "./dist/trusted.js"
+		},
+		"./store": {
 			"types": "./dist/plugin.d.ts",
 			"import": "./dist/plugin.js"
 		},
@@ -54,7 +58,7 @@
 		"test:watch": "vitest",
 		"coverage": "vitest run --coverage",
 		"check": "npm run typecheck && npm run coverage",
-		"build": "tsdown src/index.ts src/plugin.ts src/runtime.ts src/middleware.ts --format esm --dts --clean --platform neutral --external emdash --external emdash/plugin --external astro --external zod",
+		"build": "tsdown src/index.ts src/plugin.ts src/trusted.ts src/runtime.ts src/middleware.ts --format esm --dts --clean --platform neutral --external emdash --external emdash/plugin --external astro --external zod",
 		"bundle": "npm run build && emdash-plugin bundle -o .emdash-bundle-tmp",
 		"bundle:validate": "npm run build && emdash-plugin bundle --validate-only -o .emdash-bundle-tmp",
 		"changeset": "changeset",
