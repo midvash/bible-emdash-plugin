@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.0
+
+### Minor Changes
+
+- [#99](https://github.com/midvash/bible-emdash-plugin/pull/99) [`97311d3`](https://github.com/midvash/bible-emdash-plugin/commit/97311d359d90140adf75877e80d02f3111ba3144) Thanks [@onetogregorio](https://github.com/onetogregorio)! - Adds a store (sandboxed) edition for the EmDash Marketplace with an **Insert verse** editor panel: type a reference, pick a version, and the passage is added as a quote at the end of the entry's text, with the version credit. The store edition has no hover tooltip (EmDash runs `page:fragments` only for trusted plugins); the trusted npm install keeps the tooltips unchanged.
+
 ## 0.9.1
 
 ### Patch Changes
